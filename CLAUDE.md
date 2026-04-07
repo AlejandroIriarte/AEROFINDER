@@ -36,6 +36,6 @@ IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
 - [ ] FE-2: mapa Leaflet
 - [ ] FE-3: panel video HLS
 - [ ] FE-4: vistas por rol
-- [ ] INF-1: Dockerfiles
-- [ ] INF-2: docker-compose.yml
+- [x] INF-1: Dockerfiles
+- [x] INF-2: docker-compose.yml
 - [ ] INF-3: setup.sh Ubuntu
