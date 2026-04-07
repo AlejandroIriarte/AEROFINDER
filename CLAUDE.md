@@ -20,10 +20,10 @@ IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
 - Umbrales de IA desde tabla system_config, no desde os.getenv()
 
 ## Estado de sesiones
-- [ ] DB-1: análisis de dominios
-- [ ] DB-2: tablas núcleo y ENUMs
-- [ ] DB-3: índices, triggers, seguridad
-- [ ] DB-4: vistas, seeds, Alembic
+- [x] DB-1: análisis de dominios
+- [x] DB-2: tablas núcleo y ENUMs
+- [x] DB-3: índices, triggers, seguridad
+- [x] DB-4: vistas, seeds, Alembic
 - [ ] BE-1: estructura proyecto y modelos ORM
 - [ ] BE-2: auth JWT y RBAC
 - [ ] BE-3: API REST
