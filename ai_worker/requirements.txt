@@ -1,0 +1,33 @@
+# =============================================================================
+# AEROFINDER AI Worker — Dependencias Python
+# Requiere CUDA 12.6 y cuDNN en el entorno de ejecución
+# =============================================================================
+
+# Detección de objetos (YOLOv8n)
+ultralytics==8.3.52
+
+# Reconocimiento facial (InsightFace buffalo_l)
+insightface==0.7.3
+
+# Runtime ONNX con aceleración GPU (ejecuta los modelos InsightFace)
+onnxruntime-gpu==1.20.0
+
+# Visión por computadora (lectura de frames de video RTSP)
+opencv-python-headless==4.10.0.84
+
+# Computación numérica (vectores de embeddings)
+numpy==2.1.3
+
+# Base de datos (inserta detecciones y telemetría)
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+
+# Redis Streams (consume telemetría GPS, publica detecciones)
+redis[hiredis]==5.2.1
+
+# MinIO (sube snapshots de detecciones)
+minio==7.2.12
+
+# Configuración desde variables de entorno
+pydantic==2.10.3
+pydantic-settings==2.7.0

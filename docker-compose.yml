@@ -1,0 +1,297 @@
+# =============================================================================
+# AEROFINDER — Docker Compose v2
+# Requiere: .env con todas las variables de .env.example
+#
+# Servicios:
+#   postgres      — PostgreSQL 16 + PostGIS + pgvector (schema auto-aplicado)
+#   redis         — Redis 7 Streams (telemetría GPS y notificaciones)
+#   minio         — Almacenamiento S3-compatible (snapshots, fotos, videos)
+#   minio-init    — Crea los buckets en el primer arranque (one-shot)
+#   mediamtx      — Servidor RTMP/HLS/RTSP para streams de drones DJI
+#   backend       — API FastAPI + WebSockets
+#   ai-worker     — Worker YOLO + InsightFace (requiere GPU NVIDIA)
+#   frontend      — Next.js 14 App Router
+#
+# Uso:
+#   docker compose up -d                    — levantar todos los servicios
+#   docker compose up -d postgres redis     — solo infraestructura
+#   docker compose logs -f backend          — ver logs en tiempo real
+#   docker compose down -v                  — bajar y eliminar volúmenes
+# =============================================================================
+
+services:
+
+  # ── PostgreSQL 16 + PostGIS + pgvector ──────────────────────────────────────
+  postgres:
+    build:
+      context: ./database
+      dockerfile: Dockerfile
+    container_name: aerofinder_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:               ${POSTGRES_DB:-aerofinder}
+      POSTGRES_USER:             ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD:         ${POSTGRES_PASSWORD}
+      POSTGRES_APP_PASSWORD:     ${POSTGRES_APP_PASSWORD}
+      POSTGRES_WORKER_PASSWORD:  ${POSTGRES_WORKER_PASSWORD}
+      POSTGRES_AUDIT_PASSWORD:   ${POSTGRES_AUDIT_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - aerofinder_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    # No se expone el puerto al host en producción
+    # Para acceso local de desarrollo: descomentar la siguiente línea
+    # ports:
+    #   - "5432:5432"
+
+
+  # ── Redis 7 Streams ──────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: aerofinder_redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --save 60 1
+      --loglevel warning
+      --maxmemory 512mb
+      --maxmemory-policy noeviction
+    volumes:
+      - redis_data:/data
+    networks:
+      - aerofinder_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    # ports:
+    #   - "6379:6379"
+
+
+  # ── MinIO (almacenamiento S3-compatible) ─────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: aerofinder_minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - aerofinder_net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    ports:
+      - "9001:9001"   # Consola web MinIO (solo para administración)
+    # ports:
+    #   - "9000:9000" # API MinIO (solo si se necesita acceso externo)
+
+
+  # ── MinIO Init — crea buckets en el primer arranque (one-shot) ───────────────
+  minio-init:
+    image: minio/mc:latest
+    container_name: aerofinder_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    networks:
+      - aerofinder_net
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_ACCESS_KEY:    ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY:    ${MINIO_SECRET_KEY}
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD};
+        mc mb --ignore-existing local/${MINIO_BUCKET_SNAPSHOTS:-aerofinder-snapshots};
+        mc mb --ignore-existing local/${MINIO_BUCKET_PHOTOS:-aerofinder-photos};
+        mc mb --ignore-existing local/${MINIO_BUCKET_VIDEOS:-aerofinder-videos};
+        mc admin user add local $${MINIO_ACCESS_KEY} $${MINIO_SECRET_KEY};
+        mc admin policy attach local readwrite --user $${MINIO_ACCESS_KEY};
+        echo 'Buckets y usuario MinIO configurados.';
+      "
+    restart: on-failure
+
+
+  # ── MediaMTX — servidor RTMP/HLS/RTSP ───────────────────────────────────────
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: aerofinder_mediamtx
+    restart: unless-stopped
+    volumes:
+      - ./infra/mediamtx.yml:/mediamtx.yml:ro
+      - mediamtx_recordings:/recordings
+    networks:
+      - aerofinder_net
+    ports:
+      - "1935:1935"   # RTMP: la app Android DJI conecta aquí
+      - "8888:8888"   # HLS: el frontend accede aquí para reproducir video
+      # - "8554:8554" # RTSP: interno (AI worker), no exponer al exterior
+      # - "9997:9997" # API MediaMTX: interno (backend)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9997/v3/config/global/get"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+  # ── Backend FastAPI ───────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aerofinder_backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:           postgresql+asyncpg://aerofinder_app:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-aerofinder}
+      REDIS_URL:              ${REDIS_URL:-redis://redis:6379}
+      REDIS_STREAM_TELEMETRY:    ${REDIS_STREAM_TELEMETRY:-aerofinder:telemetry}
+      REDIS_STREAM_DETECTIONS:   ${REDIS_STREAM_DETECTIONS:-aerofinder:detections}
+      REDIS_STREAM_NOTIFICATIONS: ${REDIS_STREAM_NOTIFICATIONS:-aerofinder:notifications}
+      MINIO_URL:              ${MINIO_URL:-http://minio:9000}
+      MINIO_ACCESS_KEY:       ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY:       ${MINIO_SECRET_KEY}
+      MINIO_SECURE:           ${MINIO_SECURE:-false}
+      MINIO_BUCKET_SNAPSHOTS: ${MINIO_BUCKET_SNAPSHOTS:-aerofinder-snapshots}
+      MINIO_BUCKET_PHOTOS:    ${MINIO_BUCKET_PHOTOS:-aerofinder-photos}
+      MINIO_BUCKET_VIDEOS:    ${MINIO_BUCKET_VIDEOS:-aerofinder-videos}
+      MEDIAMTX_API_URL:       ${MEDIAMTX_API_URL:-http://mediamtx:9997}
+      SECRET_KEY:             ${SECRET_KEY}
+      ALGORITHM:              ${ALGORITHM:-HS256}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-60}
+      ENVIRONMENT:            ${ENVIRONMENT:-production}
+      BACKEND_CORS_ORIGINS:   ${BACKEND_CORS_ORIGINS}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      mediamtx:
+        condition: service_healthy
+    networks:
+      - aerofinder_net
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+
+  # ── AI Worker (YOLO + InsightFace) — requiere GPU NVIDIA ─────────────────────
+  ai-worker:
+    build:
+      context: ./ai_worker
+      dockerfile: Dockerfile
+    container_name: aerofinder_ai_worker
+    restart: unless-stopped
+    environment:
+      DATABASE_URL:              postgresql+asyncpg://aerofinder_worker:${POSTGRES_WORKER_PASSWORD}@postgres:5432/${POSTGRES_DB:-aerofinder}
+      REDIS_URL:                 ${REDIS_URL:-redis://redis:6379}
+      REDIS_STREAM_TELEMETRY:    ${REDIS_STREAM_TELEMETRY:-aerofinder:telemetry}
+      REDIS_STREAM_DETECTIONS:   ${REDIS_STREAM_DETECTIONS:-aerofinder:detections}
+      REDIS_STREAM_NOTIFICATIONS: ${REDIS_STREAM_NOTIFICATIONS:-aerofinder:notifications}
+      MINIO_URL:                 ${MINIO_URL:-http://minio:9000}
+      MINIO_ACCESS_KEY:          ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY:          ${MINIO_SECRET_KEY}
+      MINIO_SECURE:              ${MINIO_SECURE:-false}
+      MINIO_BUCKET_SNAPSHOTS:    ${MINIO_BUCKET_SNAPSHOTS:-aerofinder-snapshots}
+      MEDIAMTX_RTSP_URL:         ${MEDIAMTX_RTSP_URL:-rtsp://mediamtx:8554}
+      MEDIAMTX_API_URL:          ${MEDIAMTX_API_URL:-http://mediamtx:9997}
+      MODELS_DIR:                ${MODELS_DIR:-/models}
+      YOLO_MODEL_PATH:           ${YOLO_MODEL_PATH:-/models/yolov8n.pt}
+      INSIGHTFACE_MODEL_DIR:     ${INSIGHTFACE_MODEL_DIR:-/models/insightface}
+    volumes:
+      # Volumen persistente para modelos de IA — evita re-descargar (~500MB buffalo_l)
+      - ai_models:/models
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mediamtx:
+        condition: service_healthy
+    networks:
+      - aerofinder_net
+    # Configuración de GPU — requiere nvidia-container-toolkit en el host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+
+  # ── Frontend Next.js 14 ───────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL:  ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_WS_URL:   ${NEXT_PUBLIC_WS_URL:-ws://localhost:8000}
+        NEXT_PUBLIC_HLS_URL:  ${NEXT_PUBLIC_HLS_URL:-http://localhost:8888}
+    container_name: aerofinder_frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - aerofinder_net
+    ports:
+      - "3000:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+
+# =============================================================================
+# VOLÚMENES
+# =============================================================================
+volumes:
+  postgres_data:
+    name: aerofinder_postgres_data
+  redis_data:
+    name: aerofinder_redis_data
+  minio_data:
+    name: aerofinder_minio_data
+  mediamtx_recordings:
+    name: aerofinder_recordings
+  ai_models:
+    # Volumen para modelos de IA — persistente entre reinicios
+    # YOLOv8n (~6MB) + InsightFace buffalo_l (~500MB)
+    name: aerofinder_ai_models
+
+
+# =============================================================================
+# REDES
+# =============================================================================
+networks:
+  aerofinder_net:
+    name: aerofinder_net
+    driver: bridge

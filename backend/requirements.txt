@@ -1,0 +1,35 @@
+# =============================================================================
+# AEROFINDER Backend — Dependencias Python
+# Versiones fijadas para builds reproducibles
+# =============================================================================
+
+# Framework web async
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+
+# Base de datos
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# Autenticación JWT
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+
+# Validación y configuración
+pydantic==2.10.3
+pydantic-settings==2.7.0
+python-multipart==0.0.20
+
+# Redis Streams
+redis[hiredis]==5.2.1
+
+# MinIO / almacenamiento S3-compatible
+minio==7.2.12
+
+# HTTP client (para WebSockets salientes y llamadas internas)
+httpx==0.28.1
+websockets==14.1
+
+# Utilidades
+python-dateutil==2.9.0
