@@ -1,8 +1,4 @@
-
-
-
-
-[200~# AEROFINDER
+# AEROFINDER
 
 Sistema de búsqueda de personas desaparecidas con drones,
 IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
@@ -42,7 +38,4 @@ IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
 - [ ] FE-4: vistas por rol
 - [ ] INF-1: Dockerfiles
 - [ ] INF-2: docker-compose.yml
-- [ ] INF-3: setup.sh Ubuntu~
-
-
-
+- [ ] INF-3: setup.sh Ubuntu
