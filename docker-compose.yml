@@ -142,12 +142,10 @@ services:
       - "8888:8888"   # HLS: el frontend accede aquí para reproducir video
       # - "8554:8554" # RTSP: interno (AI worker), no exponer al exterior
       # - "9997:9997" # API MediaMTX: interno (backend)
+    # La imagen de MediaMTX es scratch (sin shell/curl) — no soporta healthcheck externo
+    # Se usa disable para que los servicios dependientes no queden bloqueados
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9997/v3/config/global/get"]
-      interval: 15s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
+      disable: true
 
 
   # ── Backend FastAPI ───────────────────────────────────────────────────────────
@@ -184,7 +182,7 @@ services:
       minio:
         condition: service_healthy
       mediamtx:
-        condition: service_healthy
+        condition: service_started
     networks:
       - aerofinder_net
     ports:
@@ -220,6 +218,7 @@ services:
       MODELS_DIR:                ${MODELS_DIR:-/models}
       YOLO_MODEL_PATH:           ${YOLO_MODEL_PATH:-/models/yolov8n.pt}
       INSIGHTFACE_MODEL_DIR:     ${INSIGHTFACE_MODEL_DIR:-/models/insightface}
+      DRONE_ID:                  ${DRONE_ID:-c70f0c91-d740-4c2b-b4f4-71b035c133a5}
     volumes:
       # Volumen persistente para modelos de IA — evita re-descargar (~500MB buffalo_l)
       - ai_models:/models
@@ -229,7 +228,7 @@ services:
       redis:
         condition: service_healthy
       mediamtx:
-        condition: service_healthy
+        condition: service_started
     networks:
       - aerofinder_net
     # Configuración de GPU — requiere nvidia-container-toolkit en el host

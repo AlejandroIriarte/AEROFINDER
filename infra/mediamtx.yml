@@ -1,77 +1,58 @@
 # =============================================================================
-# AEROFINDER — Configuración de MediaMTX (servidor RTMP/HLS/RTSP)
-# Documentación: https://github.com/bluenviron/mediamtx
+# AEROFINDER — Configuración de MediaMTX v1.17.x
+# Formato plano (flat) requerido por v1.x — sin sub-objetos de protocolo
 #
 # Flujo de video:
 #   App Android DJI  →  RTMP (puerto 1935)  →  MediaMTX
 #   MediaMTX         →  HLS  (puerto 8888)  →  Frontend Next.js (hls.js)
 #   MediaMTX         →  RTSP (puerto 8554)  →  AI Worker (OpenCV)
-#   MediaMTX         →  Disco /recordings   →  MinIO (vía worker)
 # =============================================================================
 
-# ── Logging ───────────────────────────────────────────────────────────────────
 logLevel: info
 logDestinations: [stdout]
 
-# ── Protocolos habilitados ────────────────────────────────────────────────────
-
-# RTMP: los drones DJI transmiten aquí desde la app Android
-rtmp: yes
-rtmpAddress: :1935
-rtmpEncryption: no
-
-# RTSP: el worker de IA lee frames de aquí con OpenCV
-rtsp: yes
-rtspAddress: :8554
-rtspEncryption: no
-
-# HLS: el frontend Next.js reproduce video con hls.js
-hls: yes
-hlsAddress: :8888
-hlsAlwaysRemux: yes           # genera HLS incluso si el stream no es H.264 nativo
-hlsVariant: lowLatency        # segmentos cortos para menor latencia (~2s)
-hlsSegmentCount: 7            # segmentos en memoria para buffer de reproducción
-hlsSegmentDuration: 1s        # duración de cada segmento HLS
-hlsAllowOrigin: "*"           # CORS: permite que Next.js acceda desde el browser
-hlsDirectory: ""              # no guarda segmentos HLS en disco (en memoria)
-
-# WebRTC: deshabilitado (no necesario para este sistema)
-webrtc: no
-
-# ── API REST de administración (usada por el backend para gestionar streams) ──
-api: yes
+# ── API REST de administración ────────────────────────────────────────────────
+api: true
 apiAddress: :9997
 
-# ── Métricas (Prometheus — opcional) ─────────────────────────────────────────
-metrics: no
+# ── Métricas: deshabilitadas ──────────────────────────────────────────────────
+metrics: false
 
-# ── Grabación de video ────────────────────────────────────────────────────────
-# MediaMTX graba cada stream en segmentos de ~60s
-# El backend los sube a MinIO y registra en video_recordings
-record: yes
-recordPath: /recordings/%path/%Y-%m-%d_%H-%M-%S-%f
-recordFormat: fmp4            # MP4 fragmentado, compatible con HLS y la mayoría de players
-recordPartDuration: 200ms     # duración de cada fragmento interno (no del segmento)
-recordSegmentDuration: 60s    # nuevo archivo cada 60 segundos
-recordDeleteAfter: 24h        # eliminar grabaciones locales tras subir a MinIO
+# ── RTSP ─────────────────────────────────────────────────────────────────────
+rtsp: true
+rtspAddress: :8554
+rtspEncryption: "no"
 
-# ── Configuración por defecto de todos los paths ─────────────────────────────
-# Un "path" es un stream: /live/drone-uuid, /live/drone-uuid-2, etc.
+# ── RTMP: los drones DJI transmiten aquí ─────────────────────────────────────
+rtmp: true
+rtmpAddress: :1935
+rtmpEncryption: "no"
+
+# ── HLS: el frontend reproduce video con hls.js ───────────────────────────────
+hls: true
+hlsAddress: :8888
+hlsAlwaysRemux: true
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsAllowOrigins: ['*']
+hlsDirectory: ''
+
+# ── WebRTC: deshabilitado ─────────────────────────────────────────────────────
+webrtc: false
+
+# ── SRT: deshabilitado ────────────────────────────────────────────────────────
+srt: false
+
+# ── Configuración por defecto de todos los paths ──────────────────────────────
 pathDefaults:
-  # Sin autenticación en MVP — agregar en producción:
-  # publishUser: drone
-  # publishPass: ${MEDIAMTX_PUBLISH_PASSWORD}
-  record: yes
-
-  # Hook: notifica al backend cuando un stream comienza
-  # El backend actualiza el estado del dron y crea el registro en video_recordings
+  # Hooks al backend (best-effort, pueden fallar si el backend aún no está listo)
   runOnReady: >-
-    curl -s -X POST http://backend:8000/internal/stream/started
+    curl -sf -X POST http://backend:8000/internal/stream/started
     -H "Content-Type: application/json"
-    -d "{\"path\":\"$$MTX_PATH\",\"rtmp_session_id\":\"$$MTX_QUERY\"}"
+    -d "{\"path\":\"$$MTX_PATH\"}" || true
 
-  # Hook: notifica al backend cuando un stream termina
   runOnNotReady: >-
-    curl -s -X POST http://backend:8000/internal/stream/ended
+    curl -sf -X POST http://backend:8000/internal/stream/ended
     -H "Content-Type: application/json"
-    -d "{\"path\":\"$$MTX_PATH\"}"
+    -d "{\"path\":\"$$MTX_PATH\"}" || true

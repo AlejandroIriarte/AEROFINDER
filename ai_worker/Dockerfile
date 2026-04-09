@@ -16,19 +16,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-venv \
     # OpenCV requiere estas librerías de sistema
-    libgl1-mesa-glx \
+    # libgl1-mesa-glx fue reemplazado por libgl1 en Ubuntu 24.04 Noble
+    libgl1 \
     libglib2.0-0 \
     libsm6 \
     libxext6 \
-    libxrender-dev \
+    libxrender1 \
+    # Compilador C++ necesario para insightface (compila extensiones nativas)
+    build-essential \
     # Herramientas de red y diagnóstico
     curl \
     # Necesario para descargar modelos ONNX de InsightFace
     wget \
  && rm -rf /var/lib/apt/lists/*
 
-# Crear usuario sin privilegios
-RUN useradd -m -u 1000 -s /bin/bash worker
+# Crear usuario sin privilegios (UID 1001 para evitar colisión con ubuntu en imagen CUDA)
+RUN useradd -m -u 1001 -s /bin/bash worker
 
 WORKDIR /app
 
@@ -47,11 +50,11 @@ COPY --chown=worker:worker . .
 
 # Directorio de modelos — se monta como volumen Docker
 # para persistir entre reinicios sin redownload
-RUN mkdir -p /models && chown worker:worker /models
+RUN mkdir -p /models && chown 1001:1001 /models
 VOLUME ["/models"]
 
 USER worker
 
 # El entrypoint descarga los modelos si faltan y luego inicia el worker
 ENTRYPOINT ["/app/entrypoint.sh"]
-CMD ["python", "-m", "app.main"]
+CMD ["python", "main.py"]
