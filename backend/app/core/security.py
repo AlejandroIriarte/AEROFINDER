@@ -65,6 +65,35 @@ def create_access_token(
         raise
 
 
+def create_refresh_token(
+    user_id: uuid.UUID,
+    jti: uuid.UUID,
+) -> str:
+    """
+    Genera un JWT de refresco firmado con HS256.
+    Payload:
+      sub  — user_id como string
+      jti  — mismo ID de sesión que el access token (permite revocación unificada)
+      type — literal "refresh" (distingue del access token)
+      exp  — 7 días desde emisión
+      iat  — timestamp de emisión
+    """
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(days=7)
+    payload = {
+        "sub":  str(user_id),
+        "jti":  str(jti),
+        "type": "refresh",
+        "iat":  now,
+        "exp":  expire,
+    }
+    try:
+        return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
+    except Exception:
+        logger.error("Error al generar refresh token", exc_info=True)
+        raise
+
+
 def decode_access_token(token: str) -> dict:
     """
     Decodifica y valida la firma y expiración del JWT.
