@@ -4,8 +4,10 @@
 # Endpoints: GET /detections, GET/POST reviews
 # =============================================================================
 
+import asyncio
 import logging
 import uuid
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -14,8 +16,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
 from app.models.enums import RoleName
+from app.models.files import File
 from app.models.pipeline import Detection, DetectionReview
 from app.schemas.detections import DetectionResponse, ReviewCreate, ReviewResponse
+from app.services.minio_service import minio_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/detections", tags=["detecciones"])
@@ -27,10 +31,11 @@ _reviewers = require_role(RoleName.admin, RoleName.buscador)
 _GPS_ROLES = {RoleName.admin, RoleName.buscador}
 
 
-def _mask_gps(det: Detection, role: RoleName) -> DetectionResponse:
+def _mask_gps(det: Detection, role: RoleName, snapshot_url: Optional[str]) -> DetectionResponse:
     """
     Construye el schema de respuesta aplicando el filtro de GPS por rol.
     ayudante y familiar: gps_latitude y gps_longitude se retornan como None.
+    snapshot_url: URL firmada de MinIO generada por el caller.
     """
     show_gps = role in _GPS_ROLES
     return DetectionResponse(
@@ -49,9 +54,40 @@ def _mask_gps(det: Detection, role: RoleName) -> DetectionResponse:
         gps_latitude=det.gps_latitude if show_gps else None,
         gps_longitude=det.gps_longitude if show_gps else None,
         snapshot_file_id=det.snapshot_file_id,
+        snapshot_url=snapshot_url,
         is_reviewed=det.is_reviewed,
         created_at=det.created_at,
     )
+
+
+async def _get_snapshot_url(det: Detection, db: AsyncSession) -> Optional[str]:
+    """
+    Obtiene la URL firmada de MinIO para el snapshot de la detección.
+    Retorna None si no hay snapshot_file_id o si ocurre un error.
+    La llamada a MinIO (síncrona) se ejecuta en el thread pool del event loop.
+    """
+    if det.snapshot_file_id is None:
+        return None
+    try:
+        result = await db.execute(
+            select(File.bucket, File.object_key).where(File.id == det.snapshot_file_id)
+        )
+        row = result.first()
+        if row is None:
+            return None
+        bucket, object_key = row
+        # MinIO SDK es síncrono; ejecutar en thread pool para no bloquear el event loop
+        url = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: minio_service.get_presigned_url(bucket, object_key, expires_seconds=3600),
+        )
+        return url
+    except Exception:
+        logger.error(
+            "Error al generar URL firmada para snapshot_file_id=%s",
+            det.snapshot_file_id, exc_info=True,
+        )
+        return None
 
 
 @router.get("/", response_model=list[DetectionResponse])
@@ -84,7 +120,15 @@ async def list_detections(
         logger.error("Error al listar detecciones", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
 
-    return [_mask_gps(d, current_user.role) for d in detections]
+    # Generar URLs firmadas en paralelo para todos los snapshots
+    snapshot_urls = await asyncio.gather(
+        *[_get_snapshot_url(d, db) for d in detections]
+    )
+
+    return [
+        _mask_gps(d, current_user.role, url)
+        for d, url in zip(detections, snapshot_urls)
+    ]
 
 
 @router.get("/{detection_id}", response_model=DetectionResponse)
@@ -106,7 +150,8 @@ async def get_detection(
     if detection is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Detección no encontrada")
 
-    return _mask_gps(detection, current_user.role)
+    snapshot_url = await _get_snapshot_url(detection, db)
+    return _mask_gps(detection, current_user.role, snapshot_url)
 
 
 # ── Revisiones ────────────────────────────────────────────────────────────────

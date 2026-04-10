@@ -15,7 +15,7 @@ class DetectionResponse(BaseModel):
     """
     Respuesta de detección con GPS opcional según el rol del solicitante.
     Para rol 'ayudante' y 'familiar', gps_latitude y gps_longitude serán None.
-    El endpoint aplica el filtrado antes de retornar.
+    snapshot_url: URL firmada de MinIO (1 hora de validez); None si no hay snapshot.
     """
     id: uuid.UUID
     mission_id: uuid.UUID
@@ -33,6 +33,7 @@ class DetectionResponse(BaseModel):
     gps_latitude: Optional[float]
     gps_longitude: Optional[float]
     snapshot_file_id: Optional[uuid.UUID]
+    snapshot_url: Optional[str]           # URL firmada de MinIO; None si sin snapshot
     is_reviewed: bool
     created_at: datetime
 
