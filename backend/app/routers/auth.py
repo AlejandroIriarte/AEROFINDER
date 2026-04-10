@@ -287,7 +287,7 @@ async def refresh_token_endpoint(
         role_result = await db.execute(select(Role).where(Role.id == user_orm.role_id))
         role: Role | None = role_result.scalar_one_or_none()
     except Exception:
-        logger.error("Error al cargar rol en refresh user_id=%s", user_id, exc_info=True)
+        logger.error("Error al cargar rol en refresh user_id=%s role_id=%s", user_id, user_orm.role_id, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
 
     if role is None:
