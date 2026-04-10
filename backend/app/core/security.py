@@ -79,13 +79,13 @@ def create_refresh_token(
       iat  — timestamp de emisión
     """
     now = datetime.now(timezone.utc)
-    expire = now + timedelta(days=7)
+    expire = now + timedelta(days=settings.refresh_token_expire_days)
     payload = {
-        "sub":  str(user_id),
-        "jti":  str(jti),
+        "sub": str(user_id),
+        "jti": str(jti),
         "type": "refresh",
-        "iat":  now,
-        "exp":  expire,
+        "iat": now,
+        "exp": expire,
     }
     try:
         return jwt.encode(payload, settings.secret_key, algorithm=settings.algorithm)
