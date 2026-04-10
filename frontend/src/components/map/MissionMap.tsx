@@ -12,6 +12,7 @@ import { useWebSocket } from "@/lib/websocket";
 import type { DetectionWSMessage } from "@/components/map/DetectionMarker";
 import type { GeoJsonPolygon, RoleName, TelemetryPoint } from "@/lib/types";
 import { missionsApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 
 // ── Importación dinámica (sin SSR) ────────────────────────────────────────────
 const MapInner = dynamic(() => import("@/components/map/MapInner"), {
@@ -49,6 +50,8 @@ interface DroneState {
 // ── Componente principal ──────────────────────────────────────────────────────
 
 export function MissionMap({ missionId, droneId, userRole }: MissionMapProps) {
+  const accessToken = useAuthStore((s) => s.accessToken);
+
   // Estado del mapa
   const [searchArea,  setSearchArea]  = useState<GeoJsonPolygon | null>(null);
   const [droneState,  setDroneState]  = useState<DroneState | null>(null);
@@ -123,9 +126,14 @@ export function MissionMap({ missionId, droneId, userRole }: MissionMapProps) {
   }, []);
 
   // ── URLs de WebSocket ──────────────────────────────────────────────────────
-  const wsBase     = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
-  const telemetryUrl = `${wsBase}/ws/telemetry/${droneId}`;
-  const missionUrl   = `${wsBase}/ws/missions/${missionId}`;
+  const wsBase       = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+  // Token puede ser null mientras la sesión carga; useWebSocket acepta null y espera
+  const telemetryUrl = accessToken
+    ? `${wsBase}/ws/telemetry/${droneId}?token=${accessToken}`
+    : null;
+  const missionUrl   = accessToken
+    ? `${wsBase}/ws/missions/${missionId}?token=${accessToken}`
+    : null;
 
   const { isConnected: telemetryOk } = useWebSocket(telemetryUrl, handleTelemetry);
   const { isConnected: missionOk   } = useWebSocket(missionUrl,   handleMissionMsg);
