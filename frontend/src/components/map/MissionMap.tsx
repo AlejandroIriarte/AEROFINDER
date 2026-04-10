@@ -7,7 +7,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWebSocket } from "@/lib/websocket";
 import type { DetectionWSMessage } from "@/components/map/DetectionMarker";
 import type { GeoJsonPolygon, RoleName, TelemetryPoint } from "@/lib/types";
@@ -126,14 +126,17 @@ export function MissionMap({ missionId, droneId, userRole }: MissionMapProps) {
   }, []);
 
   // ── URLs de WebSocket ──────────────────────────────────────────────────────
-  const wsBase       = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
-  // Token puede ser null mientras la sesión carga; useWebSocket acepta null y espera
-  const telemetryUrl = accessToken
-    ? `${wsBase}/ws/telemetry/${droneId}?token=${accessToken}`
-    : null;
-  const missionUrl   = accessToken
-    ? `${wsBase}/ws/missions/${missionId}?token=${accessToken}`
-    : null;
+  const wsBase = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+  // Token puede ser null mientras la sesión carga; useWebSocket acepta null y espera.
+  // Al cambiar el token, las URLs cambian y el hook reconecta automáticamente.
+  const telemetryUrl = useMemo(
+    () => (accessToken ? `${wsBase}/ws/telemetry/${droneId}?token=${accessToken}` : null),
+    [wsBase, droneId, accessToken],
+  );
+  const missionUrl = useMemo(
+    () => (accessToken ? `${wsBase}/ws/missions/${missionId}?token=${accessToken}` : null),
+    [wsBase, missionId, accessToken],
+  );
 
   const { isConnected: telemetryOk } = useWebSocket(telemetryUrl, handleTelemetry);
   const { isConnected: missionOk   } = useWebSocket(missionUrl,   handleMissionMsg);
