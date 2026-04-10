@@ -13,10 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.deps import CurrentUser, get_current_user
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, create_refresh_token, decode_access_token, verify_password
 from app.db.session import AsyncSessionLocal, get_db, set_db_session_context
 from app.models.auth import LoginAttempt, Role, User, UserSession
-from app.schemas.auth import LoginRequest, TokenResponse, UserMeResponse
+from app.schemas.auth import LoginRequest, RefreshTokenRequest, TokenResponse, UserMeResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -176,16 +176,21 @@ async def login(
         success=True,
     )
 
-    token = create_access_token(
+    access_token = create_access_token(
         user_id=user.id,
         jti=jti,
         role=role.name.value,
         expires_delta=expires_delta,
     )
+    refresh_token = create_refresh_token(
+        user_id=user.id,
+        jti=jti,
+    )
 
     return TokenResponse(
-        access_token=token,
+        access_token=access_token,
         expires_in=int(expires_delta.total_seconds()),
+        refresh_token=refresh_token,
     )
 
 
@@ -218,6 +223,92 @@ async def logout(
     except Exception:
         logger.error("Error al revocar sesión id=%s", session_orm.id, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+
+@router.post("/refresh", response_model=TokenResponse, status_code=status.HTTP_200_OK)
+async def refresh_token_endpoint(
+    body: RefreshTokenRequest,
+    db: AsyncSession = Depends(get_db),
+) -> TokenResponse:
+    """
+    Emite un nuevo access token a partir de un refresh token válido.
+    - Decodifica el JWT de refresco y verifica que su tipo sea "refresh".
+    - Verifica que la sesión (jti) siga activa en la DB y no esté revocada.
+    - El access token anterior queda reemplazado; el refresh token no cambia.
+    Lanza 401 en cualquier fallo de validación.
+    """
+    invalid_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Refresh token inválido o expirado",
+    )
+
+    # ── Decodificar y validar el refresh token ────────────────────────────────
+    try:
+        payload = decode_access_token(body.refresh_token)
+    except Exception:
+        raise invalid_exc
+
+    token_type = payload.get("type")
+    if token_type != "refresh":
+        raise invalid_exc
+
+    try:
+        user_id = uuid.UUID(payload["sub"])
+        jti     = uuid.UUID(payload["jti"])
+    except (KeyError, ValueError):
+        raise invalid_exc
+
+    # ── Verificar sesión activa en DB ─────────────────────────────────────────
+    try:
+        await set_db_session_context(db, user_id, "system")
+        result = await db.execute(
+            select(UserSession, User)
+            .join(User, UserSession.user_id == User.id)
+            .where(
+                UserSession.jti     == jti,
+                UserSession.is_revoked.is_(False),
+                User.id             == user_id,
+                User.is_active.is_(True),
+            )
+        )
+        row = result.first()
+    except Exception:
+        logger.error("Error al validar sesión en refresh user_id=%s", user_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if row is None:
+        raise invalid_exc
+
+    session_orm: UserSession = row[0]
+    user_orm:    User        = row[1]
+
+    # ── Cargar rol del usuario ─────────────────────────────────────────────────
+    try:
+        role_result = await db.execute(select(Role).where(Role.id == user_orm.role_id))
+        role: Role | None = role_result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al cargar rol en refresh user_id=%s", user_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if role is None:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    # ── Emitir nuevo access token (mismo jti, sesión no cambia) ───────────────
+    expires_delta = timedelta(minutes=settings.access_token_expire_minutes)
+    new_access_token = create_access_token(
+        user_id=user_orm.id,
+        jti=session_orm.jti,
+        role=role.name.value,
+        expires_delta=expires_delta,
+    )
+
+    logger.info("Access token renovado para user_id=%s", user_id)
+
+    return TokenResponse(
+        access_token=new_access_token,
+        expires_in=int(expires_delta.total_seconds()),
+        # No retornar refresh_token en la respuesta de /refresh (cliente reutiliza el mismo)
+    )
 
 
 @router.get("/me", response_model=UserMeResponse)
