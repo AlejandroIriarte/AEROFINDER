@@ -11,6 +11,7 @@ import { authApi } from "@/lib/api";
 import type { User } from "@/lib/types";
 
 const REFRESH_COOKIE  = "aerofinder_refresh";
+const TOKEN_KEY       = "aerofinder_token";
 // Cookie con SameSite=Strict y 7 días de vida
 const COOKIE_OPTIONS  = { expires: 7, sameSite: "Strict" as const };
 
@@ -45,18 +46,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await authApi.login(email, password);
 
-      // Guardar access_token solo en memoria
+      // Guardar access_token en memoria y localStorage para sobrevivir navegación
+      if (typeof window !== "undefined") {
+        localStorage.setItem(TOKEN_KEY, response.access_token);
+      }
       set({
-        user:            response.user,
         accessToken:     response.access_token,
         isAuthenticated: true,
-        isLoading:       false,
+        isLoading:       true,
       });
 
-      // Guardar refresh_token en cookie (persiste entre tabs)
-      // Nota: el backend devuelve el refresh_token en el body de /auth/login
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const refreshToken = (response as any).refresh_token as string | undefined;
+      // Obtener datos del usuario inmediatamente
+      const user = await authApi.me();
+      set({ user, isLoading: false });
+
+      // Guardar refresh_token en cookie si el backend lo devuelve
+      const refreshToken = response.refresh_token;
       if (refreshToken) {
         Cookies.set(REFRESH_COOKIE, refreshToken, COOKIE_OPTIONS);
       }
@@ -74,6 +79,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Silenciar: el logout local se completa siempre
     } finally {
       Cookies.remove(REFRESH_COOKIE);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(TOKEN_KEY);
+      }
       set({
         user:            null,
         accessToken:     null,
@@ -102,11 +110,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // ── Carga del usuario al restaurar sesión ─────────────────────────────────────
   loadUser: async () => {
-    const { accessToken, refreshToken: doRefresh } = get() as AuthState & {
+    let { accessToken } = get();
+    const { refreshToken: doRefresh } = get() as AuthState & {
       refreshToken: () => Promise<boolean>;
     };
 
-    // Si no hay token en memoria, intentar refresh desde cookie
+    // Intentar recuperar token desde localStorage si no está en memoria
+    if (!accessToken && typeof window !== "undefined") {
+      const stored = localStorage.getItem(TOKEN_KEY);
+      if (stored) {
+        accessToken = stored;
+        set({ accessToken: stored, isAuthenticated: true });
+      }
+    }
+
+    // Si sigue sin token, intentar refresh desde cookie
     if (!accessToken) {
       const refreshed = await doRefresh();
       if (!refreshed) return;
@@ -118,6 +136,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ user, isAuthenticated: true, isLoading: false });
     } catch {
       // Token inválido: limpiar
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(TOKEN_KEY);
+      }
       set({
         user:            null,
         accessToken:     null,
