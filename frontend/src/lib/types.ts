@@ -136,6 +136,7 @@ export interface Detection {
   };
   gps_latitude: number | null;
   gps_longitude: number | null;
+  snapshot_file_id: string | null;
   snapshot_url: string | null;
   is_reviewed: boolean;
   created_at: string;
@@ -192,7 +193,8 @@ export interface AuditLog {
 export interface LoginResponse {
   access_token: string;
   token_type: string;
-  user: User;
+  expires_in: number;
+  refresh_token?: string;
 }
 
 export interface PaginatedResponse<T> {
