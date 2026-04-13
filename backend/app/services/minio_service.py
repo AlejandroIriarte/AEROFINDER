@@ -159,6 +159,51 @@ class MinioService:
             )
             raise
 
+    def get_presigned_put_url(
+        self,
+        bucket: str,
+        object_key: str,
+        expires_seconds: int = 300,
+    ) -> str:
+        """
+        Genera URL firmada para PUT directo desde el cliente (subida de fotos).
+        El cliente usa esta URL para subir el archivo binario directamente a MinIO
+        sin pasar por el backend. Expira en 5 minutos por defecto.
+        """
+        try:
+            self._ensure_bucket(bucket)
+            url = self._client.presigned_put_object(
+                bucket_name=bucket,
+                object_name=object_key,
+                expires=timedelta(seconds=expires_seconds),
+            )
+            return url
+        except S3Error:
+            logger.error(
+                "Error al generar presigned PUT URL: bucket=%s key=%s",
+                bucket, object_key,
+                exc_info=True,
+            )
+            raise
+
+    def verify_object_exists(self, bucket: str, object_key: str) -> bool:
+        """
+        Verifica que el objeto fue subido exitosamente a MinIO.
+        Usa stat_object (HEAD request) sin descargar el archivo.
+        Retorna True si existe, False si no.
+        """
+        try:
+            self._client.stat_object(bucket_name=bucket, object_name=object_key)
+            return True
+        except S3Error as exc:
+            if exc.code == "NoSuchKey":
+                return False
+            logger.error(
+                "Error al verificar objeto en MinIO: bucket=%s key=%s",
+                bucket, object_key, exc_info=True,
+            )
+            return False
+
     async def file_exists_by_hash(
         self,
         sha256_hash: str,
