@@ -7,7 +7,7 @@
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Optional
 
 from sqlalchemy import select
@@ -47,7 +47,7 @@ class ConfigCache:
         """Retorna True si el caché no fue cargado o superó el TTL."""
         if self._loaded_at is None:
             return True
-        elapsed = (datetime.utcnow() - self._loaded_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self._loaded_at).total_seconds()
         return elapsed >= self._ttl_seconds
 
     def _parse_value(self, value_text: str, value_type: ConfigValueType) -> Any:
@@ -98,7 +98,7 @@ class ConfigCache:
                 )
 
             self._cache = nuevo_cache
-            self._loaded_at = datetime.utcnow()
+            self._loaded_at = datetime.now(timezone.utc)
             logger.debug("ConfigCache recargado: %d parámetros cargados", len(nuevo_cache))
         except Exception:
             logger.error(

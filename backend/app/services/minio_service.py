@@ -49,7 +49,7 @@ class MinioService:
             logger.error("Error al verificar/crear bucket MinIO: %s", bucket, exc_info=True)
             raise
 
-    def _build_public_url(self, bucket: str, object_key: str) -> str:
+    def build_public_url(self, bucket: str, object_key: str) -> str:
         """Construye la URL pública directa al objeto en MinIO."""
         parsed = urlparse(settings.minio_url)
         scheme = "https" if settings.minio_secure else "http"
@@ -79,7 +79,7 @@ class MinioService:
                 content_type=mime_type,
                 metadata={"x-amz-meta-sha256": sha256_hash},
             )
-            url = self._build_public_url(bucket, object_key)
+            url = self.build_public_url(bucket, object_key)
             logger.debug("Archivo subido a MinIO: bucket=%s key=%s", bucket, object_key)
             return url
         except S3Error:

@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import redis.asyncio as aioredis
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import settings
 from app.core.ws_manager import ws_manager
@@ -44,6 +44,9 @@ logger = logging.getLogger(__name__)
 # ── Constantes del consumer ───────────────────────────────────────────────────
 _CONSUMER_GROUP    = "backend-consumers"
 _CONSUMER_NAME     = f"backend-{socket.gethostname()}"
+
+# UUID centinela para operaciones del consumer (sin usuario humano autenticado)
+_SYSTEM_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000000")
 _STREAM_KEY        = settings.redis_stream_detections
 _DEAD_LETTER_KEY   = f"{settings.redis_stream_detections}:dead_letter"
 _MAX_BATCH         = 10      # mensajes por iteración XREADGROUP
@@ -182,7 +185,7 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
                         select(File.id).where(File.sha256_hash == sha256_hash)
                     )
                     snapshot_file_id = result.scalar_one_or_none()
-                snapshot_url = minio_service._build_public_url(
+                snapshot_url = minio_service.build_public_url(
                     settings.minio_bucket_snapshots, existing_key
                 )
             else:
@@ -198,6 +201,12 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
                 # Registrar en tabla files
                 async with AsyncSessionLocal() as session:
                     async with session.begin():
+                        await session.execute(
+                            text(f"SET LOCAL aerofinder.current_user_id = '{str(_SYSTEM_USER_ID)}'")
+                        )
+                        await session.execute(
+                            text("SET LOCAL aerofinder.current_user_role = 'system'")
+                        )
                         file_record = File(
                             id=new_file_id,
                             bucket=settings.minio_bucket_snapshots,
@@ -222,6 +231,12 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
 
     async with AsyncSessionLocal() as session:
         async with session.begin():
+            await session.execute(
+                text(f"SET LOCAL aerofinder.current_user_id = '{str(_SYSTEM_USER_ID)}'")
+            )
+            await session.execute(
+                text("SET LOCAL aerofinder.current_user_role = 'system'")
+            )
             # Obtener missing_person_id desde la misión si no vino en el payload
             missing_person_id = matched_person_id
             if missing_person_id is None:
@@ -280,6 +295,12 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
         try:
             async with AsyncSessionLocal() as session:
                 async with session.begin():
+                    await session.execute(
+                        text(f"SET LOCAL aerofinder.current_user_id = '{str(_SYSTEM_USER_ID)}'")
+                    )
+                    await session.execute(
+                        text("SET LOCAL aerofinder.current_user_role = 'system'")
+                    )
                     alert = Alert(
                         id=alert_id,
                         detection_id=detection_id,

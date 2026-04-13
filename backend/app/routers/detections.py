@@ -77,7 +77,7 @@ async def _get_snapshot_url(det: Detection, db: AsyncSession) -> Optional[str]:
             return None
         bucket, object_key = row
         # MinIO SDK es síncrono; ejecutar en thread pool para no bloquear el event loop
-        url = await asyncio.get_event_loop().run_in_executor(
+        url = await asyncio.get_running_loop().run_in_executor(
             None,
             lambda: minio_service.get_presigned_url(bucket, object_key, expires_seconds=3600),
         )
