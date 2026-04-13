@@ -18,6 +18,8 @@ class PersonCreate(BaseModel):
     age_at_disappearance: Optional[int] = None
     gender: Optional[str] = None
     physical_description: Optional[str] = None
+    height_cm: Optional[int] = None
+    last_known_clothing: Optional[str] = None
     last_known_location: Optional[str] = None
     last_seen_at: Optional[datetime] = None
     reporter_name: Optional[str] = None
@@ -30,6 +32,8 @@ class PersonUpdate(BaseModel):
     age_at_disappearance: Optional[int] = None
     gender: Optional[str] = None
     physical_description: Optional[str] = None
+    height_cm: Optional[int] = None
+    last_known_clothing: Optional[str] = None
     last_known_location: Optional[str] = None
     last_seen_at: Optional[datetime] = None
     disappeared_at: Optional[date] = None
@@ -51,9 +55,12 @@ class PersonResponse(BaseModel):
     age_at_disappearance: Optional[int]
     gender: Optional[str]
     physical_description: Optional[str]
+    height_cm: Optional[int]
+    last_known_clothing: Optional[str]
     last_known_location: Optional[str]
     last_seen_at: Optional[datetime]
     status: MissingPersonStatus
+    source: str
     reported_by_user_id: Optional[uuid.UUID]
     reporter_name: Optional[str]
     reporter_contact: Optional[str]

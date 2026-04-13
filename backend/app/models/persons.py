@@ -74,6 +74,15 @@ class MissingPerson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     closure_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
+    # Campos físicos para el pipeline de IA y búsqueda
+    height_cm: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
+    last_known_clothing: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Origen del registro: manual | public_form | gov_import
+    source: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'manual'")
+    )
+
 
 class PersonPhoto(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """

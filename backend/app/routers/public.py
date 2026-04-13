@@ -57,9 +57,12 @@ async def create_rescue_request(
             age_at_disappearance=body.age_at_disappearance,
             gender=body.gender,
             physical_description=body.physical_description,
+            height_cm=body.height_cm,
+            last_known_clothing=body.last_known_clothing,
             last_known_location=body.last_known_location,
             last_seen_at=body.last_seen_at,
             status=MissingPersonStatus.pending_review,
+            source="public_form",
             reporter_name=body.reporter_name,
             reporter_contact=body.reporter_contact,
         )

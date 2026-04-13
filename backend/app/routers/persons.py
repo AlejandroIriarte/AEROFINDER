@@ -21,12 +21,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.deps import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
 from app.models.enums import MissingPersonStatus, RoleName
-from app.models.persons import MissingPerson, PersonPhoto, PersonRelative
+from app.models.persons import MissingPerson, PersonRelative
 from app.schemas.persons import (
     PersonCreate,
     PersonResponse,
     PersonUpdate,
-    PhotoResponse,
     RelativeCreate,
     RelativeResponse,
 )
@@ -89,9 +88,12 @@ async def create_person(
             age_at_disappearance=body.age_at_disappearance,
             gender=body.gender,
             physical_description=body.physical_description,
+            height_cm=body.height_cm,
+            last_known_clothing=body.last_known_clothing,
             last_known_location=body.last_known_location,
             last_seen_at=body.last_seen_at,
             status=MissingPersonStatus.active,
+            source="manual",
             reported_by_user_id=current_user.id,
             reporter_name=body.reporter_name,
             reporter_contact=body.reporter_contact,
@@ -187,43 +189,6 @@ async def update_person(
         setattr(person, field, value)
 
     return PersonResponse.model_validate(person)
-
-
-# ── Fotos ─────────────────────────────────────────────────────────────────────
-
-@router.get("/{person_id}/photos", response_model=list[PhotoResponse])
-async def list_person_photos(
-    person_id: uuid.UUID,
-    current_user: CurrentUser = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[PhotoResponse]:
-    """Lista fotos activas de la persona. Todos los roles autenticados."""
-    try:
-        person_result = await db.execute(
-            select(MissingPerson.id).where(MissingPerson.id == person_id)
-        )
-        if person_result.scalar_one_or_none() is None:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
-    except HTTPException:
-        raise
-    except Exception:
-        logger.error("Error al verificar persona id=%s", person_id, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
-
-    try:
-        result = await db.execute(
-            select(PersonPhoto)
-            .where(
-                PersonPhoto.missing_person_id == person_id,
-                PersonPhoto.is_active.is_(True),
-            )
-        )
-        photos = result.scalars().all()
-    except Exception:
-        logger.error("Error al listar fotos persona_id=%s", person_id, exc_info=True)
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
-
-    return [PhotoResponse.model_validate(p) for p in photos]
 
 
 # ── Familiares ────────────────────────────────────────────────────────────────
