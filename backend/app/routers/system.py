@@ -15,6 +15,7 @@ from app.db.session import get_db
 from app.models.enums import RoleName
 from app.models.system import SystemConfig
 from app.schemas.system import ConfigResponse, ConfigUpdate
+from app.services.config_cache import config_cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["configuración"])
@@ -90,5 +91,8 @@ async def update_config(
 
     config.value_text = body.value_text
     config.updated_by = current_user.id
+
+    # Invalidar caché para que los workers lean el nuevo valor en el próximo ciclo
+    await config_cache.invalidate()
 
     return ConfigResponse.model_validate(config)
