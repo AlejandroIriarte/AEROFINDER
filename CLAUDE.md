@@ -29,6 +29,7 @@ IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
 - [x] BE-3: API REST
 - [x] BE-4: WebSockets
 - [x] BE-5: Redis consumer y MinIO
+- [x] BE-6: fotos personas (presigned URL), importación CSV gov, correcciones críticas
 - [x] AI-1: worker YOLO + FaceNet
 - [x] AI-2: DJI telemetría
 - [x] AI-3: notification worker
@@ -64,3 +65,10 @@ IA (YOLO + FaceNet) y telemetría GPS en tiempo real.
 ### Modelos IA
 - YOLOv8n: descargar en host con `curl -L` y copiar al volumen `aerofinder_ai_models` con permisos 1001:1001
 - InsightFace buffalo_l: se descarga automáticamente en el primer arranque (~500MB)
+
+### BE-6 — Correcciones y nuevas funcionalidades
+- **Bug crítico corregido:** alertas ahora tienen `recipient_user_id`; el fan-out notifica al lead de misión y familiares por separado con el content_level adecuado
+- **Migración 0003:** política RLS para que el formulario público pueda insertar en `missing_persons`
+- **Migración 0004:** ejecutar `alembic upgrade head` para agregar `height_cm`, `last_known_clothing`, `source` a `missing_persons`
+- **Fotos:** flujo presigned URL — el cliente obtiene URL firmada de MinIO y sube directo; el backend confirma con `stat_object`
+- **Importación CSV:** `POST /admin/import/missing-persons` con plantilla descargable en `GET /admin/import/missing-persons/template`
