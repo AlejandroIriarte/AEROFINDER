@@ -263,62 +263,91 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
             )
             session.add(detection)
 
-    # ── 4. Insertar alerta si es face_match con similitud suficiente ──────────
+    # ── 4. Insertar alertas por usuario si es face_match con similitud suficiente ──
     alert_id: Optional[uuid.UUID] = None
     facenet_threshold = await config_cache.get_float(
         config_cache.FACENET_SIMILARITY, default=0.72
     )
 
     if detection_type == "face_match" and similarity_score >= facenet_threshold:
-        # Determinar nivel de confianza y mensaje descriptivo
         if similarity_score >= 0.95:
-            content_level = AlertContentLevel.full
-            tipo_alerta   = "face_match_confirmed"
-            descripcion   = "Coincidencia facial confirmada con alta confianza"
+            tipo_alerta = "face_match_confirmed"
+            descripcion = "Coincidencia facial confirmada con alta confianza"
         elif similarity_score >= 0.85:
-            content_level = AlertContentLevel.partial
-            tipo_alerta   = "face_match_probable"
-            descripcion   = "Coincidencia facial probable, se recomienda verificación"
+            tipo_alerta = "face_match_probable"
+            descripcion = "Coincidencia facial probable, se recomienda verificación"
         else:
-            content_level = AlertContentLevel.confirmation_only
-            tipo_alerta   = "face_match_possible"
-            descripcion   = "Posible coincidencia facial, confianza baja"
+            tipo_alerta = "face_match_possible"
+            descripcion = "Posible coincidencia facial, confianza baja"
 
-        message_text = (
+        base_message = (
             f"[{tipo_alerta}] {descripcion}. "
             f"Similitud: {similarity_score:.2%}. "
-            f"Misión: {mission_id_str}. "
-            f"Dron: {drone_id_str}."
+            f"Misión: {mission_id_str}. Dron: {drone_id_str}."
         )
 
-        alert_id = uuid.uuid4()
+        # Obtener recipients: lead de la misión + familiares de la persona
+        recipients: list[tuple[uuid.UUID, AlertContentLevel]] = []
+
         try:
             async with AsyncSessionLocal() as session:
-                async with session.begin():
-                    await session.execute(
-                        text(f"SET LOCAL aerofinder.current_user_id = '{str(_SYSTEM_USER_ID)}'")
+                from app.models.persons import PersonRelative
+
+                # Lead de la misión → acceso a coords GPS → full
+                mission_result = await session.execute(
+                    select(Mission.lead_user_id).where(Mission.id == mission_id)
+                )
+                lead_id = mission_result.scalar_one_or_none()
+                if lead_id:
+                    recipients.append((lead_id, AlertContentLevel.full))
+
+                # Familiares vinculados a la persona → confirmation_only
+                if matched_person_id:
+                    rel_result = await session.execute(
+                        select(PersonRelative.user_id).where(
+                            PersonRelative.missing_person_id == matched_person_id
+                        )
                     )
-                    await session.execute(
-                        text("SET LOCAL aerofinder.current_user_role = 'system'")
-                    )
-                    alert = Alert(
-                        id=alert_id,
-                        detection_id=detection_id,
-                        content_level=content_level,
-                        status=AlertStatus.generated,
-                        message_text=message_text,
-                    )
-                    session.add(alert)
-            logger.info(
-                "Alerta generada: id=%s tipo=%s similitud=%.3f",
-                alert_id, tipo_alerta, similarity_score,
-            )
+                    for (fam_id,) in rel_result.all():
+                        if fam_id != lead_id:  # evitar duplicado si el lead es familiar
+                            recipients.append((fam_id, AlertContentLevel.confirmation_only))
         except Exception:
             logger.error(
-                "Error al insertar alerta para detección %s", detection_id, exc_info=True
+                "Error al obtener recipients para alerta detección=%s", detection_id, exc_info=True
             )
-            # El trigger fn_create_notification_queue_entries() se dispara
-            # automáticamente en el INSERT de alerts; no duplicar aquí.
+
+        # Crear una Alert por cada recipient
+        for recipient_id, content_level in recipients:
+            current_alert_id = uuid.uuid4()
+            try:
+                async with AsyncSessionLocal() as session:
+                    async with session.begin():
+                        await session.execute(
+                            text(f"SET LOCAL aerofinder.current_user_id = '{str(_SYSTEM_USER_ID)}'")
+                        )
+                        await session.execute(
+                            text("SET LOCAL aerofinder.current_user_role = 'system'")
+                        )
+                        alert = Alert(
+                            id=current_alert_id,
+                            detection_id=detection_id,
+                            recipient_user_id=recipient_id,
+                            content_level=content_level,
+                            status=AlertStatus.generated,
+                            message_text=base_message,
+                        )
+                        session.add(alert)
+                # Guardar el último alert_id para el broadcast WS
+                alert_id = current_alert_id
+                logger.info(
+                    "Alerta generada: id=%s tipo=%s recipient=%s similitud=%.3f",
+                    current_alert_id, tipo_alerta, recipient_id, similarity_score,
+                )
+            except Exception:
+                logger.error(
+                    "Error al insertar alerta para detección=%s recipient=%s",
+                    detection_id, recipient_id, exc_info=True,
+                )
 
     # ── 5. Emitir evento WebSocket ────────────────────────────────────────────
     ws_payload: dict[str, Any] = {
