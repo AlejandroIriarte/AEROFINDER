@@ -330,6 +330,173 @@ async def get_photos_pending_embedding() -> list[dict]:
         return []
 
 
+async def get_active_mission_streams() -> list[dict]:
+    """
+    Retorna todos los pares (misión, dron) activos con recognition_active=TRUE.
+    El supervisor usa esta lista para iniciar/cancelar tasks por serial.
+    Incluye face_recognition_active para configurar cada tarea.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT
+                        m.id                    AS mission_id,
+                        md.drone_id             AS drone_id,
+                        d.serial_number         AS drone_serial_number,
+                        m.missing_person_id,
+                        m.face_recognition_active
+                    FROM missions m
+                    JOIN mission_drones md ON md.mission_id = m.id
+                    JOIN drones d ON d.id = md.drone_id
+                    WHERE m.status = 'active'
+                      AND m.recognition_active = TRUE
+                      AND md.left_at IS NULL
+                    ORDER BY m.started_at DESC
+                    """
+                )
+            )
+            rows = result.mappings().all()
+            return [
+                {
+                    "mission_id":              str(row["mission_id"]),
+                    "drone_id":                str(row["drone_id"]),
+                    "drone_serial_number":     str(row["drone_serial_number"]),
+                    "missing_person_id":       str(row["missing_person_id"]),
+                    "face_recognition_active": bool(row["face_recognition_active"]),
+                }
+                for row in rows
+            ]
+    except Exception:
+        logger.error("Error al consultar streams activos de misiones", exc_info=True)
+        return []
+
+
+async def get_field_report_data(report_id: str) -> Optional[dict]:
+    """
+    Retorna los datos del field report necesarios para el análisis:
+    rescuer_id, mission_id y lista de object names de fotos en MinIO.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT
+                        fr.mission_id,
+                        fr.rescuer_id,
+                        frp.minio_object
+                    FROM field_reports fr
+                    JOIN field_report_photos frp ON frp.field_report_id = fr.id
+                    WHERE fr.id = :report_id
+                    ORDER BY frp.uploaded_at ASC
+                    """
+                ),
+                {"report_id": report_id},
+            )
+            rows = result.mappings().all()
+        if not rows:
+            return None
+        return {
+            "mission_id":  str(rows[0]["mission_id"]),
+            "rescuer_id":  str(rows[0]["rescuer_id"]),
+            "photos":      [row["minio_object"] for row in rows],
+        }
+    except Exception:
+        logger.error("Error al obtener datos del field report %s", report_id, exc_info=True)
+        return None
+
+
+async def search_similar_persons(query_vector: "np.ndarray", top_k: int = 3) -> list[dict]:
+    """
+    Busca las top_k personas más similares al vector de consulta usando
+    pgvector cosine distance (<=>). Devuelve lista con person_id, similarity_score y rank.
+    """
+    vector_str = "[" + ",".join(str(float(v)) for v in query_vector) + "]"
+    try:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT
+                        pp.missing_person_id,
+                        MIN(fe.embedding <=> :query::vector) AS distance
+                    FROM face_embeddings fe
+                    JOIN person_photos pp ON pp.id = fe.photo_id
+                    WHERE pp.is_active = TRUE
+                      AND pp.has_embedding = TRUE
+                    GROUP BY pp.missing_person_id
+                    ORDER BY distance ASC
+                    LIMIT :top_k
+                    """
+                ),
+                {"query": vector_str, "top_k": top_k},
+            )
+            rows = result.mappings().all()
+        return [
+            {
+                "person_id":        str(row["missing_person_id"]),
+                "similarity_score": round(max(0.0, 1.0 - float(row["distance"])), 4),
+                "rank":             i + 1,
+            }
+            for i, row in enumerate(rows)
+        ]
+    except Exception:
+        logger.error("Error al buscar personas similares en pgvector", exc_info=True)
+        return []
+
+
+async def save_field_report_results(
+    report_id: str,
+    mission_id: str,
+    rescuer_id: str,
+    matches: list[dict],
+) -> None:
+    """
+    Guarda los matches del análisis en field_report_matches y actualiza
+    el estado del field_report a 'completed'.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            async with session.begin():
+                for m in matches:
+                    await session.execute(
+                        text(
+                            """
+                            INSERT INTO field_report_matches
+                                (field_report_id, person_id, similarity_score, rank)
+                            VALUES (:report_id, :person_id, :score, :rank)
+                            """
+                        ),
+                        {
+                            "report_id": report_id,
+                            "person_id": m["person_id"],
+                            "score":     m["similarity_score"],
+                            "rank":      m["rank"],
+                        },
+                    )
+                await session.execute(
+                    text(
+                        """
+                        UPDATE field_reports
+                        SET status       = 'completed',
+                            completed_at = NOW()
+                        WHERE id = :report_id
+                        """
+                    ),
+                    {"report_id": report_id},
+                )
+        logger.info(
+            "Resultados guardados: report_id=%s matches=%d", report_id, len(matches)
+        )
+    except Exception:
+        logger.error(
+            "Error al guardar resultados del field report %s", report_id, exc_info=True
+        )
+        raise
+
+
 async def insert_face_embedding(photo_id: str, missing_person_id: str, vector: "np.ndarray") -> None:
     """
     Inserta el vector facial en face_embeddings y actualiza has_embedding en person_photos.

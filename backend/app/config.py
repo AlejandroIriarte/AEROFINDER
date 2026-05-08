@@ -53,6 +53,11 @@ class Settings(BaseSettings):
     twilio_auth_token: str | None = None
     twilio_from_number: str | None = None
 
+    # ── Web Push VAPID (PWA — campo requerido para envío; omitir en desarrollo) ──
+    vapid_private_key: str | None = None
+    vapid_public_key: str | None = None
+    vapid_sub: str = "mailto:admin@aerofinder.local"
+
     # ── Aplicación ───────────────────────────────────────────────────────────
     environment: str = "production"
     backend_cors_origins: str = "http://localhost:3000"
