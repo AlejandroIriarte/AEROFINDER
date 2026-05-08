@@ -57,6 +57,8 @@ class Mission(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # True mientras el AI worker debe procesar el stream de esta misión
     recognition_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
+    # True mientras el AI worker debe usar reconocimiento facial (además de detección de personas)
+    face_recognition_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
 
 
 class MissionDrone(Base):
