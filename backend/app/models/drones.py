@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, SmallInteger, Text, text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, SmallInteger, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -45,6 +45,8 @@ class Drone(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     )
     # URL de publicación RTMP/HLS para este dron (opcional). Puede ser una URL pública o un túnel.
     stream_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # True si el dron fue auto-creado por el webhook de MediaMTX (aún sin configurar)
+    auto_created: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("FALSE"))
 
 
 class DroneMaintenanceLog(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
