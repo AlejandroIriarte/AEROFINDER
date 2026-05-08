@@ -113,14 +113,117 @@ async def _get_mission_person_id(
 
 # ── Lógica de procesamiento de un mensaje ────────────────────────────────────
 
+async def _send_web_push(endpoint: str, p256dh: str, auth_key: str, payload: dict) -> None:
+    """
+    Envía una notificación Web Push vía pywebpush.
+    Si VAPID_PRIVATE_KEY no está configurada, solo loguea en consola.
+    """
+    from app.config import settings as _settings
+
+    if not _settings.vapid_private_key:
+        logger.info(
+            "[DESARROLLO] Web Push omitida (VAPID_PRIVATE_KEY no configurada): endpoint=%s...",
+            endpoint[:30],
+        )
+        return
+
+    try:
+        from pywebpush import webpush, WebPushException
+
+        def _do_push() -> None:
+            webpush(
+                subscription_info={
+                    "endpoint": endpoint,
+                    "keys": {"p256dh": p256dh, "auth": auth_key},
+                },
+                data=json.dumps(payload),
+                vapid_private_key=_settings.vapid_private_key,
+                vapid_claims={"sub": _settings.vapid_sub},
+            )
+
+        await asyncio.get_running_loop().run_in_executor(None, _do_push)
+        logger.debug("Web Push enviado: endpoint=%s...", endpoint[:30])
+
+    except Exception:
+        logger.error(
+            "Error al enviar Web Push a endpoint=%s...", endpoint[:30], exc_info=True
+        )
+
+
+async def _handle_field_report_complete(payload: dict) -> None:
+    """
+    Maneja el evento field_report_complete publicado por el AI Worker:
+    1. Broadcast WS a la sala de la misión (admin/buscador/rescatista ven el resultado).
+    2. Envía Web Push a todas las suscripciones del rescatista.
+    """
+    report_id  = payload.get("report_id", "")
+    mission_id = payload.get("mission_id", "")
+    rescuer_id = payload.get("rescuer_id", "")
+    matches    = payload.get("matches", [])
+
+    logger.info(
+        "field_report_complete: report=%s mission=%s rescuer=%s matches=%d",
+        report_id, mission_id, rescuer_id, len(matches),
+    )
+
+    # ── 1. Broadcast WebSocket ────────────────────────────────────────────────
+    ws_payload = {
+        "type":      "field_report_complete",
+        "report_id": report_id,
+        "mission_id": mission_id,
+        "matches":   matches,
+    }
+    await ws_manager.broadcast(f"mission:{mission_id}", ws_payload)
+
+    # ── 2. Web Push al rescatista ─────────────────────────────────────────────
+    if not rescuer_id:
+        return
+
+    try:
+        from sqlalchemy import text as _text
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                _text(
+                    """
+                    SELECT endpoint, p256dh, auth_key
+                    FROM push_subscriptions
+                    WHERE user_id = :uid
+                    """
+                ),
+                {"uid": rescuer_id},
+            )
+            subs = result.mappings().all()
+
+        push_payload = {
+            "title": "AEROFINDER — Análisis completado",
+            "body":  f"Se encontraron {len(matches)} coincidencias en tu reporte de campo.",
+            "data":  {"report_id": report_id, "mission_id": mission_id},
+        }
+
+        for sub in subs:
+            await _send_web_push(
+                endpoint=sub["endpoint"],
+                p256dh=sub["p256dh"],
+                auth_key=sub["auth_key"],
+                payload=push_payload,
+            )
+
+    except Exception:
+        logger.error(
+            "Error al enviar push para field_report_complete report=%s", report_id, exc_info=True
+        )
+
+
 async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
     """
     Procesa un mensaje del stream de detecciones end-to-end:
       1. Parsea campos del payload.
-      2. Sube snapshot a MinIO si existe.
-      3. Inserta en tabla detections.
-      4. Inserta en tabla alerts si es face_match.
-      5. Emite evento WebSocket.
+      2. Ruta mensajes field_report_complete a su handler específico.
+      3. Sube snapshot a MinIO si existe.
+      4. Inserta en tabla detections.
+      5. Inserta en tabla alerts si es face_match.
+      6. Emite evento WebSocket.
     """
     # ── 1. Parseo de campos del payload ──────────────────────────────────────
     raw_payload: str = data.get("data", "{}")
@@ -132,6 +235,11 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
             message_id, raw_payload, exc_info=True,
         )
         raise
+
+    # ── 2. Enrutar mensajes especiales ────────────────────────────────────────
+    if payload.get("detection_type") == "field_report_complete":
+        await _handle_field_report_complete(payload)
+        return
 
     mission_id_str: str        = payload["mission_id"]
     drone_id_str: str          = payload["drone_id"]

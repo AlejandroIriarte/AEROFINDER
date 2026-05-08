@@ -88,21 +88,25 @@ class FaceRecognizer:
         self,
         query_embedding: np.ndarray,
         threshold: float,
+        embeddings_cache: Optional[list[dict]] = None,
     ) -> Optional[dict]:
         """
         Busca el mejor match del query_embedding en el caché de referencia.
         Usa similitud coseno: dot(a, b) con ambos vectores normalizados.
+        Si embeddings_cache se pasa explícitamente, lo usa en lugar del caché
+        interno — permite que cada task use sus propios embeddings sin colisión.
         Retorna {"person_id": str, "similarity": float, "embedding_id": str}
         si la mejor similitud >= threshold, o None si no hay match.
         """
-        if not self._embeddings_cache:
+        cache = embeddings_cache if embeddings_cache is not None else self._embeddings_cache
+        if not cache:
             return None
 
         best_similarity = -1.0
         best_entry: Optional[dict] = None
 
         try:
-            for entry in self._embeddings_cache:
+            for entry in cache:
                 ref_vector = entry["vector"]
                 # Similitud coseno: producto escalar de vectores normalizados
                 similarity = float(np.dot(query_embedding, ref_vector))
