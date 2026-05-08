@@ -104,7 +104,64 @@ async def list_drones(
         logger.error("Error al listar drones", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
 
-    return [DroneResponse.model_validate(d) for d in drones]
+    host = settings.server_host
+    return [
+        DroneResponse(
+            **DroneResponse.model_validate(d).model_dump(),
+            rtmp_url=f"rtmp://{host}:1935/{d.serial_number}",
+            hls_url=f"http://{host}:8888/{d.serial_number}/index.m3u8",
+        )
+        for d in drones
+    ]
+
+
+@router.post("/stream-event")
+async def stream_event(
+    serial: str,
+    event: str,
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Webhook llamado por MediaMTX cuando un stream conecta o desconecta.
+    Sin autenticación JWT — solo accesible desde la red interna Docker.
+    event: 'connect' | 'disconnect'
+    """
+    if event not in ("connect", "disconnect"):
+        return {"ok": False, "reason": "event desconocido"}
+
+    if not serial or len(serial) > 100:
+        return {"ok": False, "reason": "serial inválido"}
+
+    if event == "connect":
+        try:
+            result = await db.execute(
+                select(Drone).where(Drone.serial_number == serial)
+            )
+            existing = result.scalar_one_or_none()
+
+            if existing is None:
+                # Auto-crear dron con datos mínimos
+                drone = Drone(
+                    serial_number=serial,
+                    model=f"Dron {serial[:8]}",
+                    manufacturer="Sin configurar",
+                    auto_created=True,
+                )
+                db.add(drone)
+                await db.flush()
+                logger.info("Dron auto-creado por stream: serial=%s", serial)
+
+                # Notificar a admins conectados
+                from app.core.ws_manager import ws_manager
+                await ws_manager.broadcast("admin", {
+                    "type": "drone_discovered",
+                    "serial": serial,
+                    "model": drone.model,
+                })
+        except Exception:
+            logger.error("Error en stream-event serial=%s", serial, exc_info=True)
+
+    return {"ok": True}
 
 
 @router.post("/", response_model=DroneResponse, status_code=status.HTTP_201_CREATED)

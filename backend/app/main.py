@@ -15,10 +15,12 @@ from app.routers import (
     auth as auth_router,
     detections as detections_router,
     drones as drones_router,
+    field_reports as field_reports_router,
     missions as missions_router,
     persons as persons_router,
     photos as photos_router,
     public as public_router,
+    push as push_router,
     system as system_router,
     telemetry as telemetry_router,
     users as users_router,
@@ -86,6 +88,8 @@ app.include_router(system_router.router)
 app.include_router(telemetry_router.router)
 app.include_router(photos_router.router)
 app.include_router(admin_import_router.router)
+app.include_router(field_reports_router.router)
+app.include_router(push_router.router)
 app.include_router(ws_router.router)       # WebSockets al final
 
 

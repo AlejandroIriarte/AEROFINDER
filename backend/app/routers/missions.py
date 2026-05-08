@@ -36,6 +36,7 @@ from app.schemas.missions import (
     WaypointCreate,
     WaypointResponse,
 )
+from app.schemas.field_reports import FieldReportCreate
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/missions", tags=["misiones"])
@@ -68,6 +69,7 @@ def _mission_to_response(m: Mission) -> MissionResponse:
         notes=m.notes,
         search_area_wkt=wkt,
         recognition_active=m.recognition_active,
+        face_recognition_active=m.face_recognition_active,
         created_at=m.created_at,
         updated_at=m.updated_at,
     )
@@ -253,19 +255,30 @@ async def toggle_recognition(
     if mission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Misión no encontrada")
 
-    if body.active and mission.status != "active":
+    if (body.person_detection or body.face_recognition) and mission.status != "active":
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="El reconocimiento solo se puede activar en misiones con estado 'active'",
         )
 
-    mission.recognition_active = body.active
+    mission.recognition_active = body.person_detection
+    mission.face_recognition_active = body.face_recognition
     logger.info(
-        "Reconocimiento %s para misión id=%s por user=%s",
-        "activado" if body.active else "desactivado",
+        "Reconocimiento actualizado — persona=%s facial=%s misión id=%s user=%s",
+        body.person_detection,
+        body.face_recognition,
         mission_id,
         current_user.id,
     )
+
+    # Broadcast a todos los conectados a esta misión
+    from app.core.ws_manager import ws_manager
+    await ws_manager.broadcast(f"mission:{mission_id}", {
+        "type": "mission_recognition",
+        "person_detection": body.person_detection,
+        "face_recognition": body.face_recognition,
+    })
+
     return _mission_to_response(mission)
 
 
@@ -472,3 +485,52 @@ async def list_coverage_zones(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
 
     return [_zone_to_response(z) for z in zones]
+
+
+# ── Field Reports ─────────────────────────────────────────────────────────────
+
+@router.post("/{mission_id}/field-reports", status_code=status.HTTP_201_CREATED)
+async def create_field_report(
+    mission_id: uuid.UUID,
+    body: FieldReportCreate,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Rescatista crea una solicitud de análisis. Notifica a admins por WS."""
+    from decimal import Decimal
+    from app.models.field_reports import FieldReport as FR
+
+    try:
+        result = await db.execute(select(Mission).where(Mission.id == mission_id))
+        mission: Mission | None = result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al buscar misión id=%s", mission_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Misión no encontrada")
+
+    if mission.status != "active":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="La misión no está activa")
+
+    report = FR(
+        mission_id=mission_id,
+        rescuer_id=current_user.id,
+        notes=body.notes,
+        location_lat=Decimal(str(body.location_lat)) if body.location_lat else None,
+        location_lon=Decimal(str(body.location_lon)) if body.location_lon else None,
+    )
+    db.add(report)
+    await db.flush()
+
+    # Notificar a todos los conectados a la misión
+    from app.core.ws_manager import ws_manager
+    await ws_manager.broadcast(f"mission:{mission_id}", {
+        "type": "field_report_request",
+        "report_id": str(report.id),
+        "rescuer_name": current_user.full_name,
+        "location_lat": body.location_lat,
+        "location_lon": body.location_lon,
+    })
+
+    return {"id": str(report.id), "status": "pending"}
