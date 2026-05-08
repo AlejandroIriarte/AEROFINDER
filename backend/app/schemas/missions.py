@@ -49,6 +49,7 @@ class MissionResponse(BaseModel):
     # WKT string del polígono; None si no está definida el área
     search_area_wkt: Optional[str] = None
     recognition_active: bool = False
+    face_recognition_active: bool = False
     created_at: datetime
     updated_at: datetime
 
@@ -56,7 +57,8 @@ class MissionResponse(BaseModel):
 
 
 class RecognitionToggleRequest(BaseModel):
-    active: bool
+    person_detection: bool
+    face_recognition: bool
 
 
 class AssignDroneRequest(BaseModel):

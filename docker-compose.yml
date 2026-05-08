@@ -143,6 +143,16 @@ services:
       # - "9997:9997" # API MediaMTX: interno (backend)
     # La imagen de MediaMTX es scratch (sin shell/curl) — no soporta healthcheck externo
     # Se usa disable para que los servicios dependientes no queden bloqueados
+    environment:
+      # Webhook auto-discovery: MediaMTX notifica al backend cuando un dron conecta/desconecta
+      RTSP_RUNONPUBLISH: >-
+        curl -sf -X POST
+        "http://backend:8000/drones/stream-event?serial=$$MTX_PATH&event=connect"
+        || true
+      RTSP_RUNONUNPUBLISH: >-
+        curl -sf -X POST
+        "http://backend:8000/drones/stream-event?serial=$$MTX_PATH&event=disconnect"
+        || true
     healthcheck:
       disable: true
 

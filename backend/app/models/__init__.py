@@ -42,6 +42,12 @@ from app.models.telemetry import (  # noqa: F401
 from app.models.system import SystemConfig  # noqa: F401
 from app.models.audit import AuditLog, DataAccessLog  # noqa: F401
 from app.models.legal import LegalConsent  # noqa: F401
+from app.models.field_reports import (  # noqa: F401
+    FieldReport,
+    FieldReportPhoto,
+    FieldReportMatch,
+    PushSubscription,
+)
 
 __all__ = [
     "Base",
@@ -74,4 +80,8 @@ __all__ = [
     "AuditLog",
     "DataAccessLog",
     "LegalConsent",
+    "FieldReport",
+    "FieldReportPhoto",
+    "FieldReportMatch",
+    "PushSubscription",
 ]

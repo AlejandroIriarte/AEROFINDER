@@ -48,6 +48,9 @@ class DroneResponse(BaseModel):
     assigned_to_user_id: Optional[uuid.UUID]
     notes: Optional[str]
     stream_url: Optional[str]
+    auto_created: bool = False
+    rtmp_url: Optional[str] = None
+    hls_url: Optional[str] = None
     registered_at: datetime
     updated_at: datetime
 

@@ -36,3 +36,6 @@ websockets==14.1
 # Utilidades
 python-dateutil==2.9.0
 shapely==2.0.6
+
+# Notificaciones Push PWA
+pywebpush==2.0.0
