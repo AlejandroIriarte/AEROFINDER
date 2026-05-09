@@ -10,12 +10,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
-import { missionsApi, dronesApi, alertsApi, systemApi } from "@/lib/api";
+import { useWebSocket } from "@/lib/websocket";
+import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi } from "@/lib/api";
 import { MissionMap } from "@/components/map/MissionMap";
-import { DroneStream } from "@/components/video/DroneStream";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
-import type { Alert, Drone, Mission, MissionDrone, MissionStatus } from "@/lib/types";
+import { DroneVideoMosaic } from "@/components/mission/DroneVideoMosaic";
+import { FieldReportPanel } from "@/components/mission/FieldReportPanel";
+import { FieldReportResultModal } from "@/components/mission/FieldReportResultModal";
+import type { Alert, Drone, FieldReport, Mission, MissionDrone, MissionStatus, StreamInfo } from "@/lib/types";
 
 // ── Helpers de presentación ───────────────────────────────────────────────────
 
@@ -78,8 +81,9 @@ export default function MissionDetailPage() {
   const params = useParams();
   const missionId = params.id as string;
 
-  const user      = useAuthStore((s) => s.user);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const user        = useAuthStore((s) => s.user);
+  const isLoading   = useAuthStore((s) => s.isLoading);
+  const accessToken = useAuthStore((s) => s.accessToken);
 
   const [mission, setMission]             = useState<Mission | null>(null);
   const [recentAlerts, setRecentAlerts]   = useState<Alert[]>([]);
@@ -93,8 +97,50 @@ export default function MissionDetailPage() {
   const [rtmpBaseUrl, setRtmpBaseUrl]     = useState<string | null>(null);
   const [copiedSerial, setCopiedSerial]   = useState<string | null>(null);
   const copyTimeoutRef                    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [fieldReports, setFieldReports]   = useState<FieldReport[]>([]);
+  const [viewingReport, setViewingReport] = useState<FieldReport | null>(null);
+  const [streams, setStreams]             = useState<StreamInfo[]>([]);
 
   const canManage = user?.role === "admin" || user?.role === "buscador";
+
+  // WebSocket — misión
+  const wsBase  = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+  const wsUrl   = accessToken && missionId
+    ? `${wsBase}/ws/missions/${missionId}?token=${accessToken}`
+    : null;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handleWsMessage = useCallback((raw: any) => {
+    const msg = raw as { type: string; [key: string]: unknown };
+    switch (msg.type) {
+      case "detection":
+      case "alert":
+        // Las alertas se actualizan vía el stream de misión; recargamos las recientes
+        alertsApi.list(missionId)
+          .then((a) => setRecentAlerts(Array.isArray(a) ? a.slice(0, 10) : []))
+          .catch(() => {});
+        break;
+      case "field_report_request":
+      case "field_report_approved":
+      case "field_report_rejected":
+      case "field_report_result":
+        fieldReportsApi.listForMission(missionId)
+          .then(setFieldReports)
+          .catch(() => {});
+        break;
+      case "mission_recognition":
+        setMission((prev) => prev ? {
+          ...prev,
+          recognition_active: msg.person_detection as boolean,
+          face_recognition_active: msg.face_recognition as boolean,
+        } : prev);
+        break;
+      default:
+        break;
+    }
+  }, [missionId]);
+
+  useWebSocket(wsUrl, handleWsMessage);
 
   // Carga inicial
   useEffect(() => {
@@ -107,13 +153,17 @@ export default function MissionDetailPage() {
       missionsApi.listDrones(missionId),
       dronesApi.list(),
       systemApi.getConfig("rtmp.base_url").catch(() => null),
+      dronesApi.listStreams().catch(() => []),
+      fieldReportsApi.listForMission(missionId).catch(() => []),
     ])
-      .then(([m, a, d, drones, rtmpCfg]) => {
+      .then(([m, a, d, drones, rtmpCfg, streamsData, reportsData]) => {
         setMission(m);
         setRecentAlerts(Array.isArray(a) ? a.slice(0, 10) : []);
         setAssignedDrones(d);
         setAllDrones(drones);
         if (rtmpCfg) setRtmpBaseUrl(rtmpCfg.value_text);
+        setStreams(streamsData as StreamInfo[]);
+        setFieldReports(reportsData as FieldReport[]);
       })
       .catch(() => router.replace("/dashboard/missions"))
       .finally(() => setLoading(false));
@@ -203,12 +253,9 @@ export default function MissionDetailPage() {
     );
   }
 
-  // Primer dron asignado activo para el mapa y stream
+  // Primer dron asignado activo para el mapa
   const activeDrone = assignedDrones.find((d) => !d.left_at);
   const droneId     = activeDrone?.drone_id ?? "";
-  const streamDrone = allDrones.find((d) => d.id === droneId) ??
-    (droneId ? { serial_number: droneId } : null);
-  const streamKey   = streamDrone?.serial_number ?? null;
   const transitions = STATUS_TRANSITIONS[mission.status] ?? [];
 
   // Drones disponibles (no asignados activamente a esta misión)
@@ -290,34 +337,18 @@ export default function MissionDetailPage() {
           className="flex h-full flex-col overflow-hidden border-l border-gray-200 bg-white"
           style={{ width: "30%" }}
         >
-          {/* Stream de video HLS */}
-          <div className="shrink-0 border-b border-gray-100">
-            {streamKey && droneId ? (
-              <DroneStream
-                streamKey={streamKey}
-                droneId={droneId}
-                userRole={user?.role ?? "buscador"}
-                className="h-44 w-full"
-              />
-            ) : (
-              <div className="flex h-44 items-center justify-center bg-gray-900">
-                <div className="text-center">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="mx-auto mb-2 h-8 w-8 text-gray-600"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  >
-                    <path d="M15 10l4.553-2.069A1 1 0 0121 8.87v6.26a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
-                  </svg>
-                  <p className="text-xs text-gray-500">
-                    {droneId ? "Sin stream configurado" : "Sin dron asignado"}
-                  </p>
-                </div>
-              </div>
-            )}
+          {/* Mosaico de drones */}
+          <div className="shrink-0 border-b border-gray-100" style={{ height: "45%" }}>
+            <DroneVideoMosaic
+              mission={mission}
+              assignedDrones={assignedDrones
+                .filter((d) => !d.left_at)
+                .map((d) => allDrones.find((x) => x.id === d.drone_id))
+                .filter(Boolean) as Drone[]}
+              streams={streams}
+              canManage={canManage}
+              onMissionUpdate={setMission}
+            />
           </div>
 
           {/* Drones asignados + URLs RTMP */}
@@ -412,6 +443,21 @@ export default function MissionDetailPage() {
             )}
           </div>
 
+          {/* Field Reports */}
+          <div className="shrink-0 border-b border-gray-100 px-4 py-2">
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              Reportes de campo ({fieldReports.filter((r) => r.status === "pending").length} pendientes)
+            </p>
+            <FieldReportPanel
+              reports={fieldReports}
+              canManage={canManage}
+              onUpdate={(updated) =>
+                setFieldReports((prev) => prev.map((r) => r.id === updated.id ? updated : r))
+              }
+              onViewResult={setViewingReport}
+            />
+          </div>
+
           {/* Info de la misión */}
           <div className="shrink-0 border-b border-gray-100 px-4 py-2.5">
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
@@ -494,6 +540,12 @@ export default function MissionDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Modal resultado field report */}
+      <FieldReportResultModal
+        report={viewingReport}
+        onClose={() => setViewingReport(null)}
+      />
 
       {/* Modal de asignación de dron */}
       <Modal open={showDroneModal} title="Asignar dron a misión" onClose={() => setShowDroneModal(false)}>
