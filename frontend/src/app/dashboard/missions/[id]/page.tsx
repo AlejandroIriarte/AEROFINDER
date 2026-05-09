@@ -176,7 +176,7 @@ export default function MissionDetailPage() {
     if (!mission) return;
     setRecognitionLoading(true);
     try {
-      const updated = await missionsApi.setRecognition(mission.id, !mission.recognition_active);
+      const updated = await missionsApi.setRecognition(mission.id, !mission.recognition_active, mission.face_recognition_active ?? false);
       setMission(updated);
     } catch {
       // Silencioso
