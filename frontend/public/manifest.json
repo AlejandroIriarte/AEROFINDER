@@ -1,0 +1,17 @@
+{
+  "name": "AEROFINDER",
+  "short_name": "Aerofinder",
+  "description": "Sistema de búsqueda de personas desaparecidas",
+  "start_url": "/app/mission",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
