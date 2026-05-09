@@ -178,6 +178,11 @@ Dron DJI → RTMP rtmp://host:1935/{serial}
 - [x] FE-6: detecciones (lista con filtros, paginación)
 - [x] FE-7: controles de misión (status, asignación drones) + video polish (snapshot, PiP)
 - [x] FE-8: flujo de roles — página detalle persona + nav buscador alertas
+- [x] BE-7: field_reports — routers, schemas, modelos, migración 0007/0008, push notifications (pywebpush)
+- [x] AI-5: supervisor loop multi-dron + field_report_analyzer (BLPOP → FaceNet → pgvector → WS broadcast)
+- [x] FE-9: mosaico multi-dron (DroneVideoMosaic + DroneStreamCard) + FieldReportPanel + FieldReportResultModal
+- [x] FE-10: PWA rescatistas — /app/mission + /app/report + /app/report/photos + /app/report/result + SW + manifest
+- [x] FE-11: drones page — RTMP URL visible, badge auto-created, modal edición; types auto_created/rtmp_url/hls_url/face_recognition_active
 - [x] INF-1: Dockerfiles
 - [x] INF-2: docker-compose.yml
 - [x] INF-3: setup.sh Ubuntu
