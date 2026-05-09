@@ -10,7 +10,7 @@ export default function AppReportResultPage() {
   const router    = useRouter();
   const params    = useSearchParams();
   const reportId  = params.get("report_id") ?? "";
-  const missionId = params.get("mission_id") ?? "";
+  params.get("mission_id"); // campo disponible pero no usado en esta vista
 
   const [report,  setReport]  = useState<FieldReport | null>(null);
   const [loading, setLoading] = useState(true);
