@@ -15,6 +15,7 @@ import type {
   Drone,
   DroneCreate,
   DroneUpdate,
+  FieldReport,
   LoginResponse,
   MissingPersonStatus,
   MissionDrone,
@@ -27,6 +28,7 @@ import type {
   MissingPerson,
   PersonCreate,
   SystemConfig,
+  UploadUrlResponse,
   User,
   UserCreate,
   UserUpdate,
@@ -237,8 +239,11 @@ export const missionsApi = {
     await api.delete(`/missions/${missionId}/drones/${droneId}`);
   },
 
-  async setRecognition(missionId: string, active: boolean): Promise<Mission> {
-    const { data } = await api.post<Mission>(`/missions/${missionId}/recognition`, { active });
+  async setRecognition(missionId: string, personDetection: boolean, faceRecognition: boolean): Promise<Mission> {
+    const { data } = await api.post<Mission>(`/missions/${missionId}/recognition`, {
+      person_detection: personDetection,
+      face_recognition: faceRecognition,
+    });
     return data;
   },
 };
@@ -448,6 +453,73 @@ export const usersApi = {
 
   async deactivate(id: string): Promise<void> {
     await api.delete(`/users/${id}`);
+  },
+};
+
+// ── Field Reports API ─────────────────────────────────────────────────────────
+
+export const fieldReportsApi = {
+  async listForMission(missionId: string): Promise<FieldReport[]> {
+    const { data } = await api.get<FieldReport[]>(`/missions/${missionId}/field-reports`);
+    return data;
+  },
+
+  async create(missionId: string, payload: {
+    notes?: string;
+    location_lat?: number;
+    location_lon?: number;
+  }): Promise<{ id: string; status: string }> {
+    const { data } = await api.post(`/missions/${missionId}/field-reports`, payload);
+    return data;
+  },
+
+  async get(reportId: string): Promise<FieldReport> {
+    const { data } = await api.get<FieldReport>(`/field-reports/${reportId}`);
+    return data;
+  },
+
+  async approve(reportId: string): Promise<FieldReport> {
+    const { data } = await api.patch<FieldReport>(`/field-reports/${reportId}/approve`);
+    return data;
+  },
+
+  async reject(reportId: string, reason: string): Promise<FieldReport> {
+    const { data } = await api.patch<FieldReport>(`/field-reports/${reportId}/reject`, { reason });
+    return data;
+  },
+
+  async getUploadUrl(reportId: string, photoIndex: number): Promise<UploadUrlResponse> {
+    const { data } = await api.post<UploadUrlResponse>(
+      `/field-reports/${reportId}/photos/upload-url`,
+      null,
+      { params: { photo_index: photoIndex } }
+    );
+    return data;
+  },
+
+  async confirmPhoto(reportId: string, objectName: string): Promise<void> {
+    await api.post(`/field-reports/${reportId}/photos/confirm`, { object_name: objectName });
+  },
+
+  async analyze(reportId: string): Promise<void> {
+    await api.post(`/field-reports/${reportId}/analyze`);
+  },
+};
+
+// ── Push Notifications API ────────────────────────────────────────────────────
+
+export const pushApi = {
+  async subscribe(subscription: PushSubscriptionJSON): Promise<void> {
+    const keys = subscription.keys as { p256dh: string; auth: string };
+    await api.post("/push/subscribe", {
+      endpoint: subscription.endpoint,
+      p256dh: keys.p256dh,
+      auth: keys.auth,
+    });
+  },
+
+  async unsubscribe(endpoint: string): Promise<void> {
+    await api.delete("/push/subscribe", { data: { endpoint } });
   },
 };
 

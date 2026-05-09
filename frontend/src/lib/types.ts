@@ -96,6 +96,9 @@ export interface Drone {
   stream_url?: string | null;
   registered_at: string;
   updated_at: string;
+  auto_created: boolean;
+  rtmp_url: string | null;
+  hls_url: string | null;
 }
 
 export interface GeoJsonPolygon {
@@ -117,6 +120,7 @@ export interface Mission {
   // Polígono PostGIS serializado como GeoJSON por el backend
   search_area: GeoJsonPolygon | null;
   recognition_active: boolean;
+  face_recognition_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -343,4 +347,43 @@ export interface StreamInfo {
   hls_url: string;
   rtsp_url: string;
   registered_drone: Drone | null;
+}
+
+// ── Field Reports ─────────────────────────────────────────────────────────────
+
+export interface FieldReportMatch {
+  person_id: string;
+  person_name: string;
+  similarity_score: number;   // 0.0 a 1.0
+  rank: number;
+  photo_url: string | null;
+}
+
+export interface FieldReportPhoto {
+  id: string;
+  minio_object: string;
+  uploaded_at: string;
+}
+
+export interface FieldReport {
+  id: string;
+  mission_id: string;
+  rescuer_id: string;
+  rescuer_name: string;
+  status: "pending" | "approved" | "rejected" | "analyzing" | "completed";
+  notes: string | null;
+  location_lat: number | null;
+  location_lon: number | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  photos: FieldReportPhoto[];
+  matches: FieldReportMatch[];
+}
+
+export interface UploadUrlResponse {
+  presigned_url: string;
+  object_name: string;
+  photo_index: number;
 }
