@@ -105,6 +105,10 @@ export default function DronesPage() {
   const [saving,     setSaving]       = useState(false);
   const [preSerial,  setPreSerial]    = useState("");
 
+  const [editingDrone, setEditingDrone] = useState<Drone | null>(null);
+  const [editForm, setEditForm] = useState({ model: "", manufacturer: "" });
+  const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
+
   const [form, setForm] = useState<DroneCreate>({
     serial_number: "",
     model: "",
@@ -131,6 +135,8 @@ export default function DronesPage() {
       .then(([d, s]) => { setDrones(d); setStreams(s); })
       .catch(() => setError("Error al cargar drones"))
       .finally(() => setLoading(false));
+
+    systemApi.getNetworkInfo().then(setNetworkInfo).catch(() => {});
 
     // Poll de streams cada 10s
     pollRef.current = setInterval(fetchStreams, 10_000);
@@ -257,11 +263,16 @@ export default function DronesPage() {
                     <div key={drone.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <p className="font-semibold text-gray-900 truncate">{drone.model}</p>
                             {isLive && (
                               <span className="shrink-0 rounded-full bg-green-100 px-1.5 py-0.5 text-[10px] font-semibold text-green-700">
                                 En vivo
+                              </span>
+                            )}
+                            {drone.auto_created && (
+                              <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700">
+                                ⚠ Sin configurar
                               </span>
                             )}
                           </div>
@@ -269,6 +280,23 @@ export default function DronesPage() {
                         </div>
                         <StatusBadge value={drone.status} domain="drone" />
                       </div>
+
+                      {/* URL RTMP siempre visible */}
+                      {(() => {
+                        const rtmpUrl = drone.rtmp_url ??
+                          (networkInfo ? networkInfo.rtmp_url_template.replace("{serial}", drone.serial_number) : null);
+                        return rtmpUrl ? (
+                          <div className="mb-2 flex items-center gap-1.5 rounded-lg bg-amber-50 px-2 py-1.5">
+                            <code className="flex-1 truncate text-[10px] text-amber-800">{rtmpUrl}</code>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(rtmpUrl)}
+                              className="shrink-0 rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 hover:bg-amber-300"
+                            >
+                              Copiar
+                            </button>
+                          </div>
+                        ) : null;
+                      })()}
 
                       <dl className="mb-3 space-y-1 text-xs text-gray-600">
                         <div className="flex justify-between">
@@ -298,6 +326,18 @@ export default function DronesPage() {
                           ))}
                         </select>
                       )}
+
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setEditingDrone(drone);
+                            setEditForm({ model: drone.model, manufacturer: drone.manufacturer });
+                          }}
+                          className="mt-2 w-full rounded-lg border border-gray-200 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50"
+                        >
+                          ✏ Editar detalles
+                        </button>
+                      )}
                     </div>
                   );
                 })}
@@ -306,6 +346,62 @@ export default function DronesPage() {
           </section>
         )}
       </div>
+
+      {/* Modal: editar dron */}
+      <Modal
+        open={!!editingDrone}
+        title="Editar dron"
+        onClose={() => setEditingDrone(null)}
+      >
+        <form
+          onSubmit={async (e) => {
+            e.preventDefault();
+            if (!editingDrone) return;
+            try {
+              const updated = await dronesApi.update(editingDrone.id, editForm);
+              setDrones((prev) => prev.map((d) => d.id === updated.id ? updated : d));
+              setEditingDrone(null);
+            } catch {
+              alert("Error al actualizar el dron");
+            }
+          }}
+          className="space-y-3"
+        >
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre / Modelo</label>
+            <input
+              required
+              value={editForm.model}
+              onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="DJI Mini 2 — Piloto Juan"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Fabricante</label>
+            <input
+              value={editForm.manufacturer}
+              onChange={(e) => setEditForm({ ...editForm, manufacturer: e.target.value })}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setEditingDrone(null)}
+              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+            >
+              Guardar
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Modal: registrar dron */}
       <Modal open={showCreate} title="Registrar dron" onClose={() => { setShowCreate(false); setPreSerial(""); }}>

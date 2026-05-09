@@ -270,6 +270,7 @@ export interface DroneCreate {
 
 export interface DroneUpdate {
   model?: string;
+  manufacturer?: string;
   status?: DroneStatus;
   battery_warning_pct?: number;
   max_flight_time_minutes?: number;
