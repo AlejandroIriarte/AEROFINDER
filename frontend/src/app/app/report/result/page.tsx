@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { fieldReportsApi } from "@/lib/api";
 import type { FieldReport } from "@/lib/types";
 
-export default function AppReportResultPage() {
+function AppReportResultContent() {
   const router    = useRouter();
   const params    = useSearchParams();
   const reportId  = params.get("report_id") ?? "";
@@ -151,5 +151,13 @@ export default function AppReportResultPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function AppReportResultPage() {
+  return (
+    <Suspense>
+      <AppReportResultContent />
+    </Suspense>
   );
 }
