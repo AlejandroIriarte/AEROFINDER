@@ -62,7 +62,7 @@ export function Topbar({
       {/* Logo button — drone SVG */}
       <button
         onClick={onToggleSidebar}
-        className="flex items-center justify-center flex-shrink-0 w-10 h-10 bg-blue-600 rounded text-white hover:bg-blue-700 transition-colors"
+        className="flex items-center justify-center flex-shrink-0 h-[34px] w-[34px] bg-blue-600 rounded-lg text-white hover:bg-blue-700 transition-colors"
         aria-label="Toggle sidebar"
       >
         <svg
@@ -82,7 +82,7 @@ export function Topbar({
       </button>
 
       {/* Vertical divider */}
-      <div className="h-6 w-px bg-slate-200" />
+      <div className="h-7 w-px bg-slate-200" aria-hidden="true" />
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm">
@@ -103,7 +103,11 @@ export function Topbar({
       {role !== "familiar" && <NotificationBell />}
 
       {/* Avatar */}
-      <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-xs font-semibold flex-shrink-0">
+      <div
+        className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-xs font-semibold flex-shrink-0"
+        aria-label={userName}
+        title={userName}
+      >
         {initials || "U"}
       </div>
     </div>
