@@ -13,9 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.core.deps import CurrentUser, get_current_user
-from app.core.security import create_access_token, create_refresh_token, decode_access_token, verify_password
+from app.core.security import create_access_token, create_refresh_token, decode_access_token, hash_password, verify_password
 from app.db.session import AsyncSessionLocal, get_db, set_db_session_context
 from app.models.auth import LoginAttempt, Role, User, UserSession
+from app.models.enums import RoleName
 from app.schemas.auth import LoginRequest, RefreshTokenRequest, RegisterRequest, RegisterResponse, TokenResponse, UserMeResponse
 
 logger = logging.getLogger(__name__)

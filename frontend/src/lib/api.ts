@@ -12,6 +12,8 @@ import Cookies from "js-cookie";
 import type {
   Alert,
   Detection,
+  DetectionReview,
+  DetectionVerdict,
   Drone,
   DroneCreate,
   DroneUpdate,
@@ -395,6 +397,28 @@ export const detectionsApi = {
     limit?: number;
   }): Promise<Detection[]> {
     const { data } = await api.get<Detection[]>("/detections/", { params });
+    return data;
+  },
+
+  async get(detectionId: string): Promise<Detection> {
+    const { data } = await api.get<Detection>(`/detections/${detectionId}`);
+    return data;
+  },
+
+  async listReviews(detectionId: string): Promise<DetectionReview[]> {
+    const { data } = await api.get<DetectionReview[]>(`/detections/${detectionId}/reviews`);
+    return data;
+  },
+
+  async submitReview(
+    detectionId: string,
+    verdict: DetectionVerdict,
+    notes?: string
+  ): Promise<DetectionReview> {
+    const { data } = await api.post<DetectionReview>(
+      `/detections/${detectionId}/reviews`,
+      { verdict, notes: notes ?? null }
+    );
     return data;
   },
 };

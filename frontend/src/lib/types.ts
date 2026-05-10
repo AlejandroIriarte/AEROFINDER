@@ -125,6 +125,8 @@ export interface Mission {
   updated_at: string;
 }
 
+export type DetectionVerdict = "confirmed" | "false_positive" | "uncertain";
+
 export interface Detection {
   id: string;
   mission_id: string;
@@ -147,6 +149,15 @@ export interface Detection {
   snapshot_url: string | null;
   is_reviewed: boolean;
   created_at: string;
+}
+
+export interface DetectionReview {
+  id: string;
+  detection_id: string;
+  reviewed_by: string;
+  verdict: DetectionVerdict;
+  notes: string | null;
+  reviewed_at: string;
 }
 
 export interface Alert {

@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fieldReportsApi } from "@/lib/api";
 
 const MIN_PHOTOS = 3;
 const MAX_PHOTOS = 5;
 
-export default function AppReportPhotosPage() {
+function AppReportPhotosContent() {
   const router       = useRouter();
   const params       = useSearchParams();
   const reportId     = params.get("report_id") ?? "";
@@ -163,5 +163,13 @@ export default function AppReportPhotosPage() {
           : `Analizar con IA (${confirmedPhotos} fotos)`}
       </button>
     </div>
+  );
+}
+
+export default function AppReportPhotosPage() {
+  return (
+    <Suspense>
+      <AppReportPhotosContent />
+    </Suspense>
   );
 }
