@@ -1,14 +1,15 @@
 // =============================================================================
 // AEROFINDER Frontend — Panel de control (admin)
-// Misiones activas, flota de drones, audit log, system_config editable.
+// Stats rápidos, links a herramientas, red info, misiones activas, flota drones.
 // =============================================================================
 
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { missionsApi, dronesApi, systemApi } from "@/lib/api";
 import { RoleGuard } from "@/components/ui/RoleGuard";
-import type { Mission, Drone, AuditLog, SystemConfig, NetworkInfo } from "@/lib/types";
+import type { Mission, Drone, NetworkInfo } from "@/lib/types";
 
 // ── Helpers de presentación ───────────────────────────────────────────────────
 
@@ -180,211 +181,37 @@ function DroneFleet({ drones }: { drones: Drone[] }) {
   );
 }
 
-// ── Sección: Audit log ────────────────────────────────────────────────────────
-
-function AuditLogSection({ entries }: { entries: AuditLog[] }) {
-  return (
-    <section>
-      <h2 className="mb-3 text-sm font-semibold text-gray-700">Auditoría reciente</h2>
-      {entries.length === 0 ? (
-        <p className="text-sm text-gray-400">Sin entradas de auditoría.</p>
-      ) : (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-          <table className="min-w-full divide-y divide-gray-100 text-xs">
-            <thead className="bg-gray-50 font-medium uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-4 py-2 text-left">Fecha</th>
-                <th className="px-4 py-2 text-left">Tabla</th>
-                <th className="px-4 py-2 text-left">Operación</th>
-                <th className="px-4 py-2 text-left">ID Registro</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {entries.map((entry) => (
-                <tr key={entry.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 text-gray-500 whitespace-nowrap">
-                    {new Date(entry.changed_at).toLocaleString("es-BO", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </td>
-                  <td className="px-4 py-2 font-mono text-gray-700">{entry.table_name}</td>
-                  <td className="px-4 py-2">
-                    <span
-                      className={`rounded px-1.5 py-0.5 font-semibold ${
-                        entry.operation === "INSERT"
-                          ? "bg-green-100 text-green-700"
-                          : entry.operation === "DELETE"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-700"
-                      }`}
-                    >
-                      {entry.operation}
-                    </span>
-                  </td>
-                  <td className="px-4 py-2 font-mono text-gray-400 truncate max-w-40">
-                    {entry.record_id}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-
-// ── Sección: System config ────────────────────────────────────────────────────
-
-function SystemConfigTable({ configs: initial }: { configs: SystemConfig[] }) {
-  const [configs,  setConfigs]  = useState(initial);
-  const [editing,  setEditing]  = useState<string | null>(null); // id del config en edición
-  const [editVal,  setEditVal]  = useState("");
-  const [saving,   setSaving]   = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
-
-  const startEdit = (cfg: SystemConfig) => {
-    setEditing(cfg.id);
-    setEditVal(cfg.value_text);
-    setError(null);
-  };
-
-  const cancelEdit = () => {
-    setEditing(null);
-    setEditVal("");
-    setError(null);
-  };
-
-  const saveEdit = async (cfg: SystemConfig) => {
-    setSaving(true);
-    setError(null);
-    try {
-      const updated = await systemApi.updateConfig(cfg.id, editVal);
-      setConfigs((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
-      setEditing(null);
-    } catch {
-      setError("Error al guardar. Verifica el valor e intenta de nuevo.");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <section>
-      <h2 className="mb-3 text-sm font-semibold text-gray-700">Configuración del sistema</h2>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-        <table className="min-w-full divide-y divide-gray-100 text-sm">
-          <thead className="bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500">
-            <tr>
-              <th className="px-4 py-2 text-left">Parámetro</th>
-              <th className="px-4 py-2 text-left">Valor</th>
-              <th className="px-4 py-2 text-left">Tipo</th>
-              <th className="px-4 py-2 text-left w-24">Acción</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {configs.map((cfg) => (
-              <tr key={cfg.id} className="hover:bg-gray-50">
-                <td className="px-4 py-2.5">
-                  <p className="font-mono text-xs text-gray-800">{cfg.config_key}</p>
-                  {cfg.description && (
-                    <p className="text-[10px] text-gray-400">{cfg.description}</p>
-                  )}
-                </td>
-                <td className="px-4 py-2.5">
-                  {editing === cfg.id ? (
-                    <div className="flex flex-col gap-1">
-                      <input
-                        type="text"
-                        value={editVal}
-                        onChange={(e) => setEditVal(e.target.value)}
-                        className="w-36 rounded border border-gray-300 px-2 py-1 font-mono text-xs focus:border-blue-500 focus:outline-none"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") saveEdit(cfg);
-                          if (e.key === "Escape") cancelEdit();
-                        }}
-                      />
-                      {error && <p className="text-[10px] text-red-600">{error}</p>}
-                    </div>
-                  ) : (
-                    <span className="font-mono text-xs text-gray-700">{cfg.value_text}</span>
-                  )}
-                </td>
-                <td className="px-4 py-2.5 text-xs text-gray-400">{cfg.value_type}</td>
-                <td className="px-4 py-2.5">
-                  {editing === cfg.id ? (
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => saveEdit(cfg)}
-                        disabled={saving}
-                        className="rounded bg-blue-600 px-2 py-1 text-[10px] font-semibold text-white hover:bg-blue-500 disabled:opacity-50"
-                      >
-                        {saving ? "…" : "Guardar"}
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        disabled={saving}
-                        className="rounded bg-gray-200 px-2 py-1 text-[10px] text-gray-600 hover:bg-gray-300 disabled:opacity-50"
-                      >
-                        Cancelar
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => startEdit(cfg)}
-                      className="rounded bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-200"
-                    >
-                      Editar
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [missions,     setMissions]     = useState<Mission[]>([]);
-  const [drones,       setDrones]       = useState<Drone[]>([]);
-  const [auditLog,     setAuditLog]     = useState<AuditLog[]>([]);
-  const [sysConfig,    setSysConfig]    = useState<SystemConfig[]>([]);
-  const [networkInfo,  setNetworkInfo]  = useState<NetworkInfo | null>(null);
-  const [loadError,    setLoadError]    = useState(false);
+  const [missions,    setMissions]    = useState<Mission[]>([]);
+  const [drones,      setDrones]      = useState<Drone[]>([]);
+  const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
+  const [loadError,   setLoadError]   = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [m, d, c, n] = await Promise.all([
+      const [m, d, n] = await Promise.all([
         missionsApi.list(),
         dronesApi.list(),
-        systemApi.listConfig(),
         systemApi.getNetworkInfo(),
       ]);
       setMissions(m);
       setDrones(d);
-      setAuditLog([]);
-      setSysConfig(c);
       setNetworkInfo(n);
     } catch {
       setLoadError(true);
     }
   }, []);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const activeMissions = missions.filter((m) => m.status === "active" || m.status === "planned");
+  const flyingDrones   = drones.filter((d) => d.status === "in_mission");
 
   return (
     <RoleGuard allowedRoles={["admin"]}>
       <div className="p-6 space-y-8">
-        {/* Título */}
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">Panel de control</h1>
           <button
@@ -401,11 +228,80 @@ export default function AdminPage() {
           </div>
         )}
 
+        {/* Stats rápidos */}
+        <div className="grid grid-cols-4 gap-4">
+          {[
+            { label: "Misiones activas",  value: activeMissions.length,  color: "text-green-600" },
+            { label: "Drones en vuelo",   value: flyingDrones.length,    color: "text-blue-600"  },
+            { label: "Total misiones",    value: missions.length,        color: "text-slate-700" },
+            { label: "Total drones",      value: drones.length,          color: "text-slate-700" },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm text-center">
+              <p className={`text-3xl font-bold ${stat.color}`}>{stat.value}</p>
+              <p className="mt-1 text-xs text-gray-500">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Links a herramientas admin */}
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">Herramientas</h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <Link
+              href="/dashboard/config"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-violet-600 fill-none" strokeWidth={1.8}>
+                  <circle cx="12" cy="12" r="3"/>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">Configuración</p>
+                <p className="text-[11px] text-slate-500">Parámetros del sistema, umbrales IA</p>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/logs"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-blue-600 fill-none" strokeWidth={1.8}>
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                  <polyline points="14 2 14 8 20 8"/>
+                  <line x1="16" y1="13" x2="8" y2="13"/>
+                  <line x1="16" y1="17" x2="8" y2="17"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">Auditoría</p>
+                <p className="text-[11px] text-slate-500">Log de cambios en la base de datos</p>
+              </div>
+            </Link>
+
+            <Link
+              href="/dashboard/users"
+              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors shadow-sm"
+            >
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-green-100">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-green-600 fill-none" strokeWidth={1.8}>
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+                  <circle cx="12" cy="7" r="4"/>
+                </svg>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">Usuarios</p>
+                <p className="text-[11px] text-slate-500">Gestión de cuentas y roles</p>
+              </div>
+            </Link>
+          </div>
+        </section>
+
         {networkInfo && <NetworkInfoSection info={networkInfo} />}
         <ActiveMissions missions={missions} />
         <DroneFleet drones={drones} />
-        <AuditLogSection entries={auditLog} />
-        {sysConfig.length > 0 && <SystemConfigTable configs={sysConfig} />}
       </div>
     </RoleGuard>
   );
