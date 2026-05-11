@@ -9,7 +9,7 @@ import type { MissingPerson, PersonCreate } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Modal } from "@/components/ui/Modal";
+import { Modal } from "@/components/ui/Modal"; // Aún usado para Modal de registro
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 function PersonCard({
@@ -78,7 +78,6 @@ export default function PersonsPage() {
   const [persons, setPersons]       = useState<MissingPerson[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
-  const [selected, setSelected]     = useState<MissingPerson | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving]         = useState(false);
 
@@ -179,49 +178,12 @@ export default function PersonsPage() {
                 person={person}
                 canApprove={canApprove}
                 onApprove={handleApprove}
-                onClick={setSelected}
+                onClick={(p) => router.push(`/dashboard/persons/${p.id}`)}
               />
             ))}
           </div>
         )}
       </div>
-
-      {/* Modal detalle */}
-      <Modal
-        open={selected !== null}
-        title={selected?.full_name ?? ""}
-        onClose={() => setSelected(null)}
-      >
-        {selected && (
-          <>
-          <dl className="space-y-3 text-sm">
-            {([
-              ["Estado", <StatusBadge key="s" value={selected.status} domain="person" />],
-              ["Fecha desaparición", new Date(selected.disappeared_at).toLocaleDateString("es-BO")],
-              selected.age_at_disappearance ? ["Edad", `${selected.age_at_disappearance} años`] : null,
-              selected.gender ? ["Género", selected.gender] : null,
-              selected.last_known_location ? ["Última ubicación", selected.last_known_location] : null,
-              selected.physical_description ? ["Descripción física", selected.physical_description] : null,
-              selected.reporter_name ? ["Reportado por", selected.reporter_name] : null,
-              selected.reporter_contact ? ["Contacto", selected.reporter_contact] : null,
-            ] as ([string, React.ReactNode] | null)[])
-              .filter((row): row is [string, React.ReactNode] => row !== null)
-              .map(([label, value], i) => (
-                <div key={i} className="flex justify-between gap-4">
-                  <dt className="shrink-0 font-medium text-slate-500">{label}</dt>
-                  <dd className="text-right text-slate-900">{value}</dd>
-                </div>
-              ))}
-          </dl>
-          <button
-            onClick={() => router.push(`/dashboard/persons/${selected.id}`)}
-            className="mt-4 w-full rounded-lg border border-blue-200 bg-blue-50 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100 transition-colors"
-          >
-            Ver perfil completo →
-          </button>
-          </>
-        )}
-      </Modal>
 
       {/* Modal registrar persona */}
       <Modal open={showCreate} title="Registrar persona desaparecida" onClose={() => setShowCreate(false)}>
