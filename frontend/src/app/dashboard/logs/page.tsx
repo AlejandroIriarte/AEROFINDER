@@ -1,7 +1,7 @@
 // Tabla de auditoría. Si el endpoint no existe en backend, muestra mensaje claro.
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth";
 import type { AuditLog } from "@/lib/types";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -17,19 +17,32 @@ const OP_BADGE: Record<string, string> = {
 export default function LogsPage() {
   const user = useAuthStore((s) => s.user);
 
-  const [logs, setLogs]               = useState<AuditLog[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [unavailable, setUnavailable] = useState(false);
+  const [logs, setLogs]    = useState<AuditLog[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError]   = useState<string | null>(null);
 
   const isAdmin = user?.role === "admin";
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!isAdmin) return;
-    api.get<AuditLog[]>("/audit-log/", { params: { limit: 100 } })
-      .then(({ data }) => setLogs(data))
-      .catch(() => setUnavailable(true))
-      .finally(() => setLoading(false));
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await api.get<AuditLog[]>("/audit-log/", { params: { limit: 100 } });
+      setLogs(data);
+    } catch (err: unknown) {
+      const axiosErr = err as { response?: { status?: number } };
+      if (axiosErr.response?.status === 403) {
+        setError("Sin permisos para ver el log de auditoría.");
+      } else {
+        setError("Error al cargar el log. Intenta de nuevo.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }, [isAdmin]);
+
+  useEffect(() => { load(); }, [load]);
 
   if (!isAdmin) {
     return (
@@ -49,36 +62,19 @@ export default function LogsPage() {
 
       {loading && <LoadingSpinner />}
 
-      {!loading && unavailable && (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
-            <svg
-              className="h-7 w-7 text-amber-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-              />
-            </svg>
-          </div>
-          <h3 className="mb-1 text-[13px] font-semibold text-slate-700">
-            Endpoint de auditoría no disponible
-          </h3>
-          <p className="max-w-xs text-[12px] text-slate-400">
-            El módulo de auditoría aún no está implementado en el backend. Los registros de
-            cambio se almacenan en la tabla{" "}
-            <code className="rounded bg-slate-100 px-1">audit_log</code> y estarán
-            disponibles en una próxima versión.
-          </p>
+      {!loading && error && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-center">
+          <p className="text-sm text-amber-800">{error}</p>
+          <button
+            onClick={load}
+            className="mt-3 rounded-lg bg-amber-600 px-4 py-2 text-sm text-white hover:bg-amber-700"
+          >
+            Reintentar
+          </button>
         </div>
       )}
 
-      {!loading && !unavailable && logs.length > 0 && (
+      {!loading && !error && logs.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
           <table className="w-full text-[12px]">
             <thead className="bg-slate-50">
