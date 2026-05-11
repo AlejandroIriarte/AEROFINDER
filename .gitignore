@@ -1,0 +1,55 @@
+# =============================================================================
+# AEROFINDER — .gitignore
+# Credenciales y archivos de máquina local nunca van al repo.
+# =============================================================================
+
+# ── Credenciales y configuración local ───────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.so
+.venv/
+venv/
+env/
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env.local
+frontend/.env.production.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/package-lock.json
+frontend/yarn.lock
+
+# ── Docker ────────────────────────────────────────────────────────────────────
+*.log
+
+# ── Herramientas de desarrollo ────────────────────────────────────────────────
+.superpowers/
+.DS_Store
+*.swp
+*.swo
+.idea/
+.vscode/
+*.iml
+
+# ── Modelos de IA (demasiado pesados para el repo) ───────────────────────────
+*.pt
+*.onnx
+*.pkl
+models/
+
+# ── Secrets scan ─────────────────────────────────────────────────────────────
+.secrets.baseline
