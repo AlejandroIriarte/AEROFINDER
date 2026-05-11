@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth";
 import type { AuditLog } from "@/lib/types";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/dashboard/PageHeader";
 import api from "@/lib/api";
 
 const OP_BADGE: Record<string, string> = {
@@ -33,102 +33,98 @@ export default function LogsPage() {
 
   if (!isAdmin) {
     return (
-      <div className="flex h-full flex-col">
+      <div className="p-5">
         <PageHeader title="Auditoría" />
-        <div className="flex flex-1 items-center justify-center text-gray-400">
-          Acceso restringido a administradores
-        </div>
+        <p className="text-[12px] text-slate-400">Acceso restringido a administradores</p>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="p-5">
       <PageHeader
         title="Auditoría"
-        description="Registro de cambios en la base de datos"
+        subtitle="Registro de cambios en la base de datos"
       />
 
-      <div className="flex-1 overflow-auto p-6">
-        {loading && <LoadingSpinner />}
+      {loading && <LoadingSpinner />}
 
-        {!loading && unavailable && (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
-              <svg
-                className="h-7 w-7 text-amber-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
-                />
-              </svg>
-            </div>
-            <h3 className="mb-1 text-base font-semibold text-gray-700">
-              Endpoint de auditoría no disponible
-            </h3>
-            <p className="max-w-xs text-sm text-gray-400">
-              El módulo de auditoría aún no está implementado en el backend. Los registros de
-              cambio se almacenan en la tabla{" "}
-              <code className="rounded bg-gray-100 px-1">audit_log</code> y estarán
-              disponibles en una próxima versión.
-            </p>
+      {!loading && unavailable && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-amber-50">
+            <svg
+              className="h-7 w-7 text-amber-400"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+              />
+            </svg>
           </div>
-        )}
+          <h3 className="mb-1 text-[13px] font-semibold text-slate-700">
+            Endpoint de auditoría no disponible
+          </h3>
+          <p className="max-w-xs text-[12px] text-slate-400">
+            El módulo de auditoría aún no está implementado en el backend. Los registros de
+            cambio se almacenan en la tabla{" "}
+            <code className="rounded bg-slate-100 px-1">audit_log</code> y estarán
+            disponibles en una próxima versión.
+          </p>
+        </div>
+      )}
 
-        {!loading && !unavailable && logs.length > 0 && (
-          <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50 text-left">
-                  <th className="px-4 py-3 font-semibold text-gray-600">Fecha</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Tabla</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Operación</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">ID registro</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600">Usuario</th>
+      {!loading && !unavailable && logs.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <table className="w-full text-[12px]">
+            <thead className="bg-slate-50">
+              <tr>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Fecha</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Tabla</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Operación</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">ID registro</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Usuario</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {logs.map((log) => (
+                <tr key={log.id} className="hover:bg-slate-50 transition-colors">
+                  <td className="px-4 py-3 tabular-nums text-slate-500">
+                    {new Date(log.changed_at).toLocaleString("es-BO", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    })}
+                  </td>
+                  <td className="px-4 py-3">
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono text-slate-700">
+                      {log.table_name}
+                    </code>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        OP_BADGE[log.operation] ?? "bg-slate-100 text-slate-600"
+                      }`}
+                    >
+                      {log.operation}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 font-mono text-[11px] text-slate-400">
+                    {log.record_id.slice(0, 8)}…
+                  </td>
+                  <td className="px-4 py-3 text-slate-500">
+                    {log.changed_by ? log.changed_by.slice(0, 8) + "…" : "—"}
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {logs.map((log) => (
-                  <tr key={log.id} className="border-b border-gray-50 hover:bg-gray-50">
-                    <td className="px-4 py-3 tabular-nums text-gray-500">
-                      {new Date(log.changed_at).toLocaleString("es-BO", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                      })}
-                    </td>
-                    <td className="px-4 py-3">
-                      <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-700">
-                        {log.table_name}
-                      </code>
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-                          OP_BADGE[log.operation] ?? "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {log.operation}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 font-mono text-xs text-gray-400">
-                      {log.record_id.slice(0, 8)}…
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {log.changed_by ? log.changed_by.slice(0, 8) + "…" : "—"}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

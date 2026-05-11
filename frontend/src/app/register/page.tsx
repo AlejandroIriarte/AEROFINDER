@@ -10,75 +10,44 @@ export default function RegisterPage() {
   const router = useRouter();
   const { register, isLoading } = useAuthStore();
 
-  // Estado del formulario
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email,           setEmail]           = useState("");
+  const [password,        setPassword]        = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [phone, setPhone] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [fullName,        setFullName]        = useState("");
+  const [phone,           setPhone]           = useState("");
+  const [showPassword,    setShowPassword]    = useState(false);
+  const [showConfirm,     setShowConfirm]     = useState(false);
 
-  // Estado de errores
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [errors,       setErrors]       = useState<Record<string, string>>({});
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error">("success");
-  const [showToast, setShowToast] = useState(false);
+  const [toastType,    setToastType]    = useState<"success" | "error">("success");
+  const [showToast,    setShowToast]    = useState(false);
 
-  // Validación local
   const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
-
-    if (!email.trim()) {
-      newErrors.email = "El email es obligatorio";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Email inválido";
-    }
-
-    if (!password) {
-      newErrors.password = "La contraseña es obligatoria";
-    } else if (password.length < 8) {
-      newErrors.password = "La contraseña debe tener al menos 8 caracteres";
-    } else if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-      newErrors.password = "La contraseña debe contener letras y números";
-    }
-
-    if (password !== confirmPassword) {
-      newErrors.confirmPassword = "Las contraseñas no coinciden";
-    }
-
-    if (!fullName.trim()) {
-      newErrors.fullName = "El nombre completo es obligatorio";
-    } else if (fullName.length < 3) {
-      newErrors.fullName = "El nombre debe tener al menos 3 caracteres";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    const e: Record<string, string> = {};
+    if (!email.trim())                                         e.email    = "El email es obligatorio";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))      e.email    = "Email inválido";
+    if (!password)                                             e.password = "La contraseña es obligatoria"; // pragma: allowlist secret
+    else if (password.length < 8)                             e.password = "Mínimo 8 caracteres"; // pragma: allowlist secret
+    else if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) e.password = "Debe contener letras y números"; // pragma: allowlist secret
+    if (password !== confirmPassword)                          e.confirmPassword = "Las contraseñas no coinciden";
+    if (!fullName.trim())                                      e.fullName = "El nombre completo es obligatorio";
+    else if (fullName.length < 3)                             e.fullName = "Mínimo 3 caracteres";
+    setErrors(e);
+    return Object.keys(e).length === 0;
   };
 
-  // Manejo del envío
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
       await register(email, password, fullName, phone || undefined);
-
-      // Mostrar éxito
       setToastMessage("Cuenta creada exitosamente. Redirigiendo a login...");
       setToastType("success");
       setShowToast(true);
-
-      // Redirigir a login después de 2 segundos
-      setTimeout(() => {
-        router.push("/login?email=" + encodeURIComponent(email));
-      }, 2000);
+      setTimeout(() => router.push("/login?email=" + encodeURIComponent(email)), 2000);
     } catch (error) {
-      // Manejar errores
       let errorMessage = "Error al crear la cuenta";
       if (error instanceof Error) {
         if (error.message.includes("409")) {
@@ -88,7 +57,6 @@ export default function RegisterPage() {
           errorMessage = error.message;
         }
       }
-
       setToastMessage(errorMessage);
       setToastType("error");
       setShowToast(true);
@@ -96,7 +64,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center px-4 py-12">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-8">
       {showToast && (
         <Toast
           type={toastType}
@@ -106,163 +74,137 @@ export default function RegisterPage() {
         />
       )}
 
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
-        {/* Encabezado */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Crear Cuenta
-          </h1>
-          <p className="text-gray-600">
-            Únete a AeroFinder para reportar casos
-          </p>
+      <div className="w-full max-w-sm">
+        {/* Logo */}
+        <div className="mb-6 text-center">
+          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 shadow-sm">
+            <svg className="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-bold text-slate-900">AEROFINDER</h1>
+          <p className="mt-0.5 text-[13px] text-slate-500">Crear una cuenta de familiar</p>
         </div>
 
-        {/* Formulario */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Email */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (errors.email) setErrors({ ...errors, email: "" });
-              }}
-              placeholder="tu@email.com"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                errors.email
-                  ? "border-red-500 bg-red-50 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-blue-500"
-              }`}
-            />
-            {errors.email && (
-              <p className="mt-1 text-xs text-red-600 font-medium">{errors.email}</p>
-            )}
-          </div>
+        {/* Tarjeta */}
+        <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <form onSubmit={handleSubmit} className="space-y-3.5">
 
-          {/* Nombre completo */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Nombre Completo
-            </label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => {
-                setFullName(e.target.value);
-                if (errors.fullName) setErrors({ ...errors, fullName: "" });
-              }}
-              placeholder="Juan Pérez"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                errors.fullName
-                  ? "border-red-500 bg-red-50 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-blue-500"
-              }`}
-            />
-            {errors.fullName && (
-              <p className="mt-1 text-xs text-red-600 font-medium">{errors.fullName}</p>
-            )}
-          </div>
+            {/* Email */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-slate-700">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); if (errors.email) setErrors({ ...errors, email: "" }); }}
+                placeholder="tu@email.com"
+                className={`w-full rounded-lg border px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.email ? "border-red-400 bg-red-50" : "border-slate-300"
+                }`}
+              />
+              {errors.email && <p className="mt-1 text-[11px] text-red-600">{errors.email}</p>}
+            </div>
 
-          {/* Teléfono (opcional) */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Teléfono (Opcional)
-            </label>
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+34 600 00 00 00"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+            {/* Nombre completo */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-slate-700">Nombre completo</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => { setFullName(e.target.value); if (errors.fullName) setErrors({ ...errors, fullName: "" }); }}
+                placeholder="Juan Pérez"
+                className={`w-full rounded-lg border px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                  errors.fullName ? "border-red-400 bg-red-50" : "border-slate-300"
+                }`}
+              />
+              {errors.fullName && <p className="mt-1 text-[11px] text-red-600">{errors.fullName}</p>}
+            </div>
 
-          {/* Contraseña */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Contraseña
-            </label>
-            <input
-              type={showPassword ? "text" : "password"}
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errors.password) setErrors({ ...errors, password: "" });
-              }}
-              placeholder="••••••••"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 pr-12 ${
-                errors.password
-                  ? "border-red-500 bg-red-50 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-blue-500"
-              }`}
-            />
+            {/* Teléfono */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-slate-700">
+                Teléfono <span className="text-slate-400">(opcional)</span>
+              </label>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+591 70000000"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            {/* Contraseña */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-slate-700">Contraseña</label>
+              <div className="relative">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors({ ...errors, password: "" }); }}
+                  placeholder="••••••••"
+                  className={`w-full rounded-lg border px-3 py-2 pr-10 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.password ? "border-red-400 bg-red-50" : "border-slate-300"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600"
+                  aria-label={showPassword ? "Ocultar" : "Mostrar"}
+                >
+                  {showPassword ? "Ocultar" : "Ver"}
+                </button>
+              </div>
+              {errors.password && <p className="mt-1 text-[11px] text-red-600">{errors.password}</p>}
+            </div>
+
+            {/* Confirmar contraseña */}
+            <div>
+              <label className="mb-1.5 block text-[12px] font-medium text-slate-700">Confirmar contraseña</label>
+              <div className="relative">
+                <input
+                  type={showConfirm ? "text" : "password"}
+                  value={confirmPassword}
+                  onChange={(e) => { setConfirmPassword(e.target.value); if (errors.confirmPassword) setErrors({ ...errors, confirmPassword: "" }); }}
+                  placeholder="••••••••"
+                  className={`w-full rounded-lg border px-3 py-2 pr-10 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    errors.confirmPassword ? "border-red-400 bg-red-50" : "border-slate-300"
+                  }`}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirm(!showConfirm)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400 hover:text-slate-600"
+                  aria-label={showConfirm ? "Ocultar" : "Mostrar"}
+                >
+                  {showConfirm ? "Ocultar" : "Ver"}
+                </button>
+              </div>
+              {errors.confirmPassword && <p className="mt-1 text-[11px] text-red-600">{errors.confirmPassword}</p>}
+            </div>
+
+            {/* Submit */}
             <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-10 text-gray-500 hover:text-gray-700"
+              type="submit"
+              disabled={isLoading}
+              className="w-full rounded-lg bg-blue-600 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {showPassword ? "Ocultar" : "Ver"}
+              {isLoading ? "Creando cuenta…" : "Crear cuenta"}
             </button>
-            {errors.password && (
-              <p className="mt-1 text-xs text-red-600 font-medium">{errors.password}</p>
-            )}
+          </form>
+
+          <div className="mt-4 text-center text-[12px] text-slate-500">
+            ¿Ya tienes cuenta?{" "}
+            <Link href="/login" className="font-semibold text-blue-600 hover:text-blue-700">
+              Iniciar sesión
+            </Link>
           </div>
-
-          {/* Confirmar contraseña */}
-          <div className="relative">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Confirmar Contraseña
-            </label>
-            <input
-              type={showConfirmPassword ? "text" : "password"}
-              value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
-                if (errors.confirmPassword)
-                  setErrors({ ...errors, confirmPassword: "" });
-              }}
-              placeholder="••••••••"
-              className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 pr-12 ${
-                errors.confirmPassword
-                  ? "border-red-500 bg-red-50 focus:ring-red-500"
-                  : "border-gray-300 focus:ring-blue-500"
-              }`}
-            />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-10 text-gray-500 hover:text-gray-700"
-            >
-              {showConfirmPassword ? "Ocultar" : "Ver"}
-            </button>
-            {errors.confirmPassword && (
-              <p className="mt-1 text-xs text-red-600 font-medium">
-                {errors.confirmPassword}
-              </p>
-            )}
-          </div>
-
-          {/* Botón de registro */}
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-          >
-            {isLoading ? "Creando cuenta..." : "Crear Cuenta"}
-          </button>
-        </form>
-
-        {/* Link a login */}
-        <div className="mt-6 text-center text-sm text-gray-600">
-          ¿Ya tienes cuenta?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline font-semibold">
-            Inicia sesión
-          </Link>
         </div>
+
+        <p className="mt-4 text-center text-[11px] text-slate-400">
+          Solo para familias de personas desaparecidas
+        </p>
       </div>
     </div>
   );
