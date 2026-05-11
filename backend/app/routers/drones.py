@@ -106,11 +106,10 @@ async def list_drones(
 
     host = settings.server_host
     return [
-        DroneResponse(
-            **DroneResponse.model_validate(d).model_dump(),
-            rtmp_url=f"rtmp://{host}:1935/{d.serial_number}",
-            hls_url=f"http://{host}:8888/{d.serial_number}/index.m3u8",
-        )
+        DroneResponse.model_validate(d).model_copy(update={
+            "rtmp_url": f"rtmp://{host}:1935/{d.serial_number}",
+            "hls_url":  f"http://{host}:8888/{d.serial_number}/index.m3u8",
+        })
         for d in drones
     ]
 

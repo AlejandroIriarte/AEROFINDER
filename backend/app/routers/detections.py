@@ -93,7 +93,7 @@ async def _get_snapshot_url(det: Detection, db: AsyncSession) -> Optional[str]:
 @router.get("/", response_model=list[DetectionResponse])
 async def list_detections(
     skip: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, le=100),
+    limit: int = Query(default=20, le=500),
     mission_id: uuid.UUID | None = Query(default=None),
     missing_person_id: uuid.UUID | None = Query(default=None),
     is_reviewed: bool | None = Query(default=None),
