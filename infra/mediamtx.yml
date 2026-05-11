@@ -1,0 +1,38 @@
+###############################################################################
+# MediaMTX — AEROFINDER
+# RTMP :1935 (entrada DJI)  |  RTSP :8554  |  HLS :8888  |  API :9997
+###############################################################################
+
+logLevel: info
+logDestinations: [stdout]
+
+# API interna — el backend consulta streams activos
+api: yes
+apiAddress: :9997
+
+# RTMP — drones DJI conectan aquí
+rtmp: yes
+rtmpAddress: :1935
+
+# HLS — frontend Next.js reproduce desde aquí
+hls: yes
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsSegmentCount: 3
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+
+# RTSP — AI worker lee desde aquí
+rtsp: yes
+rtspAddress: :8554
+rtspsAddress: :8322
+rtpAddress: :8000
+
+# WebRTC desactivado
+webrtc: no
+
+# Acepta cualquier stream sin autenticación
+# (seguridad manejada por la red Docker interna)
+paths:
+  all:
+    source: publisher
