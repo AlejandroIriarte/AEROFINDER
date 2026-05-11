@@ -14,32 +14,41 @@ import { NotificationProvider } from "@/components/notifications/NotificationPro
 import { GlobalToasts } from "@/components/notifications/GlobalToasts";
 import { useSidebarBadges } from "@/hooks/useSidebarBadges";
 
-// Mapa de ruta a label legible para el breadcrumb
-const BREADCRUMB_MAP: Record<string, string> = {
-  "/dashboard":                        "Inicio",
-  "/dashboard/missions":               "Misiones",
-  "/dashboard/persons":                "Personas",
-  "/dashboard/detections":             "Detecciones",
-  "/dashboard/drones":                 "Drones",
-  "/dashboard/alerts":                 "Alertas",
-  "/dashboard/admin":                  "Panel admin",
-  "/dashboard/admin/pending-review":   "Revisión de casos",
-  "/dashboard/users":                  "Usuarios",
-  "/dashboard/config":                 "Configuración",
-  "/dashboard/logs":                   "Auditoría",
-  "/dashboard/familiar":               "Mis casos",
-  "/dashboard/familiar/report":        "Reportar",
-  "/dashboard/notifications":          "Notificaciones",
-};
-
 function useBreadcrumb(): string {
   const pathname = usePathname();
-  const exact = BREADCRUMB_MAP[pathname];
-  if (exact) return exact;
-  const prefix = Object.keys(BREADCRUMB_MAP)
+
+  // Rutas estáticas exactas
+  const EXACT: Record<string, string> = {
+    "/dashboard":                        "Inicio",
+    "/dashboard/missions":               "Misiones",
+    "/dashboard/persons":                "Personas",
+    "/dashboard/detections":             "Detecciones",
+    "/dashboard/drones":                 "Drones",
+    "/dashboard/alerts":                 "Alertas",
+    "/dashboard/admin":                  "Panel admin",
+    "/dashboard/admin/pending-review":   "Revisión de casos",
+    "/dashboard/users":                  "Usuarios",
+    "/dashboard/config":                 "Configuración",
+    "/dashboard/logs":                   "Auditoría",
+    "/dashboard/familiar":               "Mis casos",
+    "/dashboard/familiar/report":        "Reportar",
+    "/dashboard/notifications":          "Notificaciones",
+  };
+
+  if (EXACT[pathname]) return EXACT[pathname];
+
+  // Rutas dinámicas por patrón
+  const missionMatch = pathname.match(/^\/dashboard\/missions\/[^/]+$/);
+  if (missionMatch) return "Detalle de misión";
+
+  const personMatch = pathname.match(/^\/dashboard\/persons\/[^/]+$/);
+  if (personMatch) return "Detalle de persona";
+
+  // Prefijo más largo
+  const prefix = Object.keys(EXACT)
     .filter((k) => pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0];
-  return prefix ? BREADCRUMB_MAP[prefix] : "Dashboard";
+  return prefix ? EXACT[prefix] : "Dashboard";
 }
 
 function InnerLayout({ children }: { children: React.ReactNode }) {
