@@ -103,12 +103,10 @@ function NetworkInfoSection({ info }: { info: NetworkInfo }) {
 // ── Sección: Misiones activas ─────────────────────────────────────────────────
 
 function ActiveMissions({ missions }: { missions: Mission[] }) {
-  const active = missions.filter((m) => m.status === "active" || m.status === "planned");
-
   return (
     <section>
       <h2 className="mb-3 text-sm font-semibold text-gray-700">Misiones activas</h2>
-      {active.length === 0 ? (
+      {missions.length === 0 ? (
         <p className="text-sm text-gray-400">Sin misiones activas.</p>
       ) : (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -121,7 +119,7 @@ function ActiveMissions({ missions }: { missions: Mission[] }) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {active.map((m) => (
+              {missions.map((m) => (
                 <tr key={m.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-gray-900 truncate max-w-48">{m.name}</p>
@@ -300,7 +298,7 @@ export default function AdminPage() {
         </section>
 
         {networkInfo && <NetworkInfoSection info={networkInfo} />}
-        <ActiveMissions missions={missions} />
+        <ActiveMissions missions={activeMissions} />
         <DroneFleet drones={drones} />
       </div>
     </RoleGuard>
