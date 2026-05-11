@@ -222,8 +222,12 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
         {(role === "admin" || role === "buscador") && (
           <Link
             href="/connect"
-            title={isOpen ? undefined : "Conectar dispositivo"}
-            className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors ${isOpen ? "w-full" : "w-9 justify-center"}`}
+            title={isOpen ? undefined : "Conectar"}
+            className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 transition-colors ${
+              pathname === "/connect"
+                ? "bg-blue-50 text-blue-600"
+                : "text-slate-500 hover:bg-slate-50 hover:text-slate-800"
+            } ${isOpen ? "w-full" : "w-9 justify-center"}`}
           >
             {Icons.connect}
             {isOpen && <span className="text-[13px] font-medium">Conectar</span>}
