@@ -12,6 +12,7 @@ from app.config import settings
 from app.routers import (
     admin_import as admin_import_router,
     alerts as alerts_router,
+    audit_log as audit_log_router,
     auth as auth_router,
     detections as detections_router,
     drones as drones_router,
@@ -88,6 +89,7 @@ app.include_router(system_router.router)
 app.include_router(telemetry_router.router)
 app.include_router(photos_router.router)
 app.include_router(admin_import_router.router)
+app.include_router(audit_log_router.router)
 app.include_router(field_reports_router.router)
 app.include_router(push_router.router)
 app.include_router(ws_router.router)       # WebSockets al final
