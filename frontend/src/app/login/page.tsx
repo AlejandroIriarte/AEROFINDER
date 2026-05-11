@@ -6,7 +6,7 @@
 "use client";
 
 import { FormEvent, useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth";
 
@@ -22,6 +22,7 @@ function validateEmail(email: string): boolean {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const login  = useAuthStore((s) => s.login);
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -31,6 +32,12 @@ export default function LoginPage() {
   const [errors,         setErrors]         = useState<FormErrors>({});
   const [isLoading,      setIsLoading]      = useState(false);
   const [showPassword,   setShowPassword]   = useState(false);
+
+  // Pre-llenar email si viene del flujo de registro
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    if (emailParam) setEmail(emailParam);
+  }, [searchParams]);
 
   // Scroll a errores
   useEffect(() => {
