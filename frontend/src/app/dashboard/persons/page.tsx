@@ -10,7 +10,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { PageHeader } from "@/components/dashboard/PageHeader";
 
 function PersonCard({
   person,
@@ -32,7 +32,7 @@ function PersonCard({
 
   return (
     <div
-      className="cursor-pointer rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
       onClick={() => onClick(person)}
     >
       <div className="mb-3 flex items-center gap-3">
@@ -40,8 +40,8 @@ function PersonCard({
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="truncate font-semibold text-gray-900">{person.full_name}</p>
-          <p className="text-xs text-gray-500">
+          <p className="truncate font-semibold text-slate-900">{person.full_name}</p>
+          <p className="text-xs text-slate-500">
             Desaparición: {new Date(person.disappeared_at).toLocaleDateString("es-BO")}
           </p>
         </div>
@@ -50,7 +50,7 @@ function PersonCard({
       <div className="mb-3 flex items-center justify-between">
         <StatusBadge value={person.status} domain="person" />
         {person.last_known_location && (
-          <span className="max-w-[120px] truncate text-xs text-gray-400">
+          <span className="max-w-[120px] truncate text-xs text-slate-400">
             {person.last_known_location}
           </span>
         )}
@@ -125,27 +125,29 @@ export default function PersonsPage() {
   const pendingCount = persons.filter((p) => p.status === "pending_review").length;
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="p-5">
       <PageHeader
         title="Personas desaparecidas"
-        description={
+        subtitle={
           pendingCount > 0
             ? `${persons.length} registradas — ${pendingCount} pendientes de revisión`
             : `${persons.length} registradas`
         }
-        action={
-          canEdit ? (
-            <button
-              onClick={() => setShowCreate(true)}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-            >
-              + Registrar persona
-            </button>
-          ) : undefined
-        }
-      />
+      >
+        {canEdit && (
+          <button
+            onClick={() => setShowCreate(true)}
+            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 transition-colors"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 stroke-white fill-none" strokeWidth={2.5}>
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+            Registrar persona
+          </button>
+        )}
+      </PageHeader>
 
-      <div className="flex-1 overflow-auto p-6">
+      <div>
         {loading && <LoadingSpinner />}
 
         {!loading && error && (
@@ -206,8 +208,8 @@ export default function PersonsPage() {
               .filter((row): row is [string, React.ReactNode] => row !== null)
               .map(([label, value], i) => (
                 <div key={i} className="flex justify-between gap-4">
-                  <dt className="shrink-0 font-medium text-gray-500">{label}</dt>
-                  <dd className="text-right text-gray-900">{value}</dd>
+                  <dt className="shrink-0 font-medium text-slate-500">{label}</dt>
+                  <dd className="text-right text-slate-900">{value}</dd>
                 </div>
               ))}
           </dl>
@@ -225,66 +227,66 @@ export default function PersonsPage() {
       <Modal open={showCreate} title="Registrar persona desaparecida" onClose={() => setShowCreate(false)}>
         <form onSubmit={handleCreate} className="space-y-3">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nombre completo *</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Nombre completo *</label>
             <input
               required
               value={form.full_name}
               onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Fecha desaparición *</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Fecha desaparición *</label>
             <input
               required
               type="date"
               value={form.disappeared_at}
               onChange={(e) => setForm({ ...form, disappeared_at: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Última ubicación conocida</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Última ubicación conocida</label>
             <input
               value={form.last_known_location ?? ""}
               onChange={(e) => setForm({ ...form, last_known_location: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Descripción física</label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Descripción física</label>
             <textarea
               rows={2}
               value={form.physical_description ?? ""}
               onChange={(e) => setForm({ ...form, physical_description: e.target.value })}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Reportado por</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Reportado por</label>
               <input
                 value={form.reporter_name ?? ""}
                 onChange={(e) => setForm({ ...form, reporter_name: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Contacto</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">Contacto</label>
               <input
                 value={form.reporter_contact ?? ""}
                 onChange={(e) => setForm({ ...form, reporter_contact: e.target.value })}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
               />
             </div>
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <button type="button" onClick={() => setShowCreate(false)}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100">
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
               Cancelar
             </button>
             <button type="submit" disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              className="rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
               {saving ? "Registrando…" : "Registrar"}
             </button>
           </div>
