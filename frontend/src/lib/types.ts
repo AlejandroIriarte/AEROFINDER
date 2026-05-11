@@ -164,6 +164,7 @@ export interface Alert {
   id: string;
   detection_id: string;
   recipient_user_id: string | null;
+  mission_id: string | null;          // opcional — el backend aún no lo expone, pero lo soportamos
   content_level: AlertContentLevel;
   status: AlertStatus;
   message_text: string | null;

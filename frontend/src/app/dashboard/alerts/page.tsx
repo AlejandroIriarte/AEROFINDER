@@ -2,6 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { alertsApi } from "@/lib/api";
 import type { Alert, WSMessage } from "@/lib/types";
@@ -14,6 +15,7 @@ type FilterType = "all" | "pending";
 
 export default function AlertsPage() {
   const accessToken = useAuthStore((s) => s.accessToken);
+  const router = useRouter();
 
   const [alerts, setAlerts]     = useState<Alert[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -120,7 +122,11 @@ export default function AlertsPage() {
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm divide-y divide-slate-50">
           {filtered.map((alert) => (
             <div key={alert.id} className="flex items-start gap-0">
-              <div className="flex-1">
+              <div
+                className={`flex-1 ${alert.mission_id ? "cursor-pointer" : ""}`}
+                onClick={() => alert.mission_id && router.push(`/dashboard/missions/${alert.mission_id}`)}
+                title={alert.mission_id ? "Ver misión" : undefined}
+              >
                 <AlertRow alert={alert} />
               </div>
               {(alert.status === "generated" || alert.status === "sent") && (
