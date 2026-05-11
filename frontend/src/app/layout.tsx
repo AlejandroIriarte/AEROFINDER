@@ -24,6 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="es" className={inter.variable}>
       <body>
         <AuthProvider>
+          {/* Suspense requerido para useSearchParams() en páginas hijas (Next.js 14) */}
           <Suspense fallback={null}>{children}</Suspense>
         </AuthProvider>
       </body>
