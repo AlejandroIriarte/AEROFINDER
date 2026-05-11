@@ -122,6 +122,13 @@ const Icons = {
       <path d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
     </svg>
   ),
+  connect: (
+    <svg viewBox="0 0 24 24" className="h-[17px] w-[17px] stroke-current fill-none flex-shrink-0" strokeWidth={1.8}>
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/>
+      <path d="M14 14h.01M14 17h.01M17 14h.01M17 17h.01M20 14h.01M20 17h.01M20 20h.01M17 20h.01M14 20h.01"/>
+    </svg>
+  ),
 };
 
 function NavPill({ count, color }: { count: number; color: "red" | "blue" | "amber" }) {
@@ -210,6 +217,18 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
         )}
 
         <div className="flex-1" />
+
+        {/* Link Conectar — admin y buscador */}
+        {(role === "admin" || role === "buscador") && (
+          <Link
+            href="/connect"
+            title={isOpen ? undefined : "Conectar dispositivo"}
+            className={`flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition-colors ${isOpen ? "w-full" : "w-9 justify-center"}`}
+          >
+            {Icons.connect}
+            {isOpen && <span className="text-[13px] font-medium">Conectar</span>}
+          </Link>
+        )}
 
         <button
           onClick={() => logout()}
