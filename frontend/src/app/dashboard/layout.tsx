@@ -14,41 +14,38 @@ import { NotificationProvider } from "@/components/notifications/NotificationPro
 import { GlobalToasts } from "@/components/notifications/GlobalToasts";
 import { useSidebarBadges } from "@/hooks/useSidebarBadges";
 
+// Constante a nivel de módulo — se inicializa una sola vez al cargar el módulo
+const BREADCRUMB_EXACT: Record<string, string> = {
+  "/dashboard":                        "Inicio",
+  "/dashboard/missions":               "Misiones",
+  "/dashboard/persons":                "Personas",
+  "/dashboard/detections":             "Detecciones",
+  "/dashboard/drones":                 "Drones",
+  "/dashboard/alerts":                 "Alertas",
+  "/dashboard/admin":                  "Panel admin",
+  "/dashboard/admin/pending-review":   "Revisión de casos",
+  "/dashboard/users":                  "Usuarios",
+  "/dashboard/config":                 "Configuración",
+  "/dashboard/logs":                   "Auditoría",
+  "/dashboard/familiar":               "Mis casos",
+  "/dashboard/familiar/report":        "Reportar",
+  "/dashboard/notifications":          "Notificaciones",
+};
+
 function useBreadcrumb(): string {
   const pathname = usePathname();
 
-  // Rutas estáticas exactas
-  const EXACT: Record<string, string> = {
-    "/dashboard":                        "Inicio",
-    "/dashboard/missions":               "Misiones",
-    "/dashboard/persons":                "Personas",
-    "/dashboard/detections":             "Detecciones",
-    "/dashboard/drones":                 "Drones",
-    "/dashboard/alerts":                 "Alertas",
-    "/dashboard/admin":                  "Panel admin",
-    "/dashboard/admin/pending-review":   "Revisión de casos",
-    "/dashboard/users":                  "Usuarios",
-    "/dashboard/config":                 "Configuración",
-    "/dashboard/logs":                   "Auditoría",
-    "/dashboard/familiar":               "Mis casos",
-    "/dashboard/familiar/report":        "Reportar",
-    "/dashboard/notifications":          "Notificaciones",
-  };
-
-  if (EXACT[pathname]) return EXACT[pathname];
+  if (BREADCRUMB_EXACT[pathname]) return BREADCRUMB_EXACT[pathname];
 
   // Rutas dinámicas por patrón
-  const missionMatch = pathname.match(/^\/dashboard\/missions\/[^/]+$/);
-  if (missionMatch) return "Detalle de misión";
+  if (/^\/dashboard\/missions\/[^/]+$/.test(pathname)) return "Detalle de misión";
+  if (/^\/dashboard\/persons\/[^/]+$/.test(pathname))  return "Detalle de persona";
 
-  const personMatch = pathname.match(/^\/dashboard\/persons\/[^/]+$/);
-  if (personMatch) return "Detalle de persona";
-
-  // Prefijo más largo
-  const prefix = Object.keys(EXACT)
+  // Prefijo más largo como fallback
+  const prefix = Object.keys(BREADCRUMB_EXACT)
     .filter((k) => pathname.startsWith(k + "/"))
     .sort((a, b) => b.length - a.length)[0];
-  return prefix ? EXACT[prefix] : "Dashboard";
+  return prefix ? BREADCRUMB_EXACT[prefix] : "Dashboard";
 }
 
 function InnerLayout({ children }: { children: React.ReactNode }) {
