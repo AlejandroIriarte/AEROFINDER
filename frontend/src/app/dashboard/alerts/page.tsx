@@ -123,8 +123,11 @@ export default function AlertsPage() {
           {filtered.map((alert) => (
             <div key={alert.id} className="flex items-start gap-0">
               <div
-                className={`flex-1 ${alert.mission_id ? "cursor-pointer" : ""}`}
+                role={alert.mission_id ? "button" : undefined}
+                tabIndex={alert.mission_id ? 0 : undefined}
+                className={`flex-1 ${alert.mission_id ? "cursor-pointer hover:bg-slate-50 transition-colors" : ""}`}
                 onClick={() => alert.mission_id && router.push(`/dashboard/missions/${alert.mission_id}`)}
+                onKeyDown={(e) => { if (e.key === "Enter" && alert.mission_id) router.push(`/dashboard/missions/${alert.mission_id}`); }}
                 title={alert.mission_id ? "Ver misión" : undefined}
               >
                 <AlertRow alert={alert} />
@@ -132,13 +135,13 @@ export default function AlertsPage() {
               {(alert.status === "generated" || alert.status === "sent") && (
                 <div className="flex shrink-0 flex-col gap-1.5 px-4 py-2.5">
                   <button
-                    onClick={() => handleConfirm(alert.id)}
+                    onClick={(e) => { e.stopPropagation(); handleConfirm(alert.id); }}
                     className="rounded-lg bg-green-100 px-2.5 py-1 text-[10px] font-semibold text-green-700 hover:bg-green-200 transition-colors"
                   >
                     ✓ Confirmar
                   </button>
                   <button
-                    onClick={() => handleDismiss(alert.id)}
+                    onClick={(e) => { e.stopPropagation(); handleDismiss(alert.id); }}
                     className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[10px] font-medium text-slate-500 hover:bg-slate-50 transition-colors"
                   >
                     Descartar
