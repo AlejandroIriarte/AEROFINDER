@@ -300,6 +300,7 @@ export interface PersonCreate {
   height_cm?: number;
   last_known_clothing?: string;
   last_known_location?: string;
+  last_seen_at?: string;
   reporter_name?: string;
   reporter_contact?: string;
 }
