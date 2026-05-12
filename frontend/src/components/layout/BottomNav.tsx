@@ -96,10 +96,12 @@ export function BottomNav({ role, onOpenDrawer }: BottomNavProps) {
   const items    = ITEMS_BY_ROLE[role] ?? ITEMS_BY_ROLE.familiar;
 
   const isActive = (href: string) =>
-    pathname === href || pathname.startsWith(href + "/");
+    href === "/dashboard"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200 bg-white px-2 safe-area-inset-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200 bg-white px-2 pb-safe">
       {items.map((item) => (
         <Link
           key={item.href}
