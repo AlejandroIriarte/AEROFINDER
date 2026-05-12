@@ -10,6 +10,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { Topbar } from "@/components/layout/Topbar";
 import { Sidebar } from "@/components/layout/Sidebar";
+import { BottomNav } from "@/components/layout/BottomNav";
 import { NotificationProvider } from "@/components/notifications/NotificationProvider";
 import { GlobalToasts } from "@/components/notifications/GlobalToasts";
 import { useSidebarBadges } from "@/hooks/useSidebarBadges";
@@ -99,11 +100,19 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
         onToggleSidebar={toggleSidebar}
       />
       <div className="flex flex-1 overflow-hidden">
+        {/* Backdrop overlay — solo en móvil cuando sidebar está abierto */}
+        {sidebarOpen && (
+          <div
+            className="fixed inset-0 z-40 bg-black/40 md:hidden"
+            onClick={toggleSidebar}
+          />
+        )}
         <Sidebar isOpen={sidebarOpen} badges={badges} />
-        <main className="flex-1 overflow-y-auto bg-slate-100">
+        <main className="flex-1 overflow-y-auto bg-slate-100 pb-16 md:pb-0">
           {children}
         </main>
       </div>
+      <BottomNav role={user.role} onOpenDrawer={toggleSidebar} />
     </div>
   );
 }
