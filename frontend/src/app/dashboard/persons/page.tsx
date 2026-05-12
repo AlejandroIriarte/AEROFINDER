@@ -5,11 +5,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { personsApi } from "@/lib/api";
-import type { MissingPerson, PersonCreate } from "@/lib/types";
+import type { MissingPerson } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/StatusBadge";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Modal } from "@/components/ui/Modal"; // Aún usado para Modal de registro
 import { PageHeader } from "@/components/dashboard/PageHeader";
 
 function PersonCard({
@@ -78,13 +77,6 @@ export default function PersonsPage() {
   const [persons, setPersons]       = useState<MissingPerson[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
-  const [saving, setSaving]         = useState(false);
-
-  const [form, setForm] = useState<PersonCreate>({
-    full_name: "",
-    disappeared_at: "",
-  });
 
   const canEdit    = user?.role === "admin" || user?.role === "buscador";
   const canApprove = user?.role === "admin" || user?.role === "ayudante";
@@ -105,21 +97,6 @@ export default function PersonsPage() {
     }
   }
 
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    if (!form.full_name || !form.disappeared_at) return;
-    setSaving(true);
-    try {
-      const created = await personsApi.create(form);
-      setPersons((prev) => [created, ...prev]);
-      setShowCreate(false);
-      setForm({ full_name: "", disappeared_at: "" });
-    } catch {
-      alert("Error al registrar la persona");
-    } finally {
-      setSaving(false);
-    }
-  }
 
   const pendingCount = persons.filter((p) => p.status === "pending_review").length;
 
@@ -135,7 +112,7 @@ export default function PersonsPage() {
       >
         {canEdit && (
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => router.push("/dashboard/persons/new")}
             className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 transition-colors"
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 stroke-white fill-none" strokeWidth={2.5}>
@@ -160,7 +137,7 @@ export default function PersonsPage() {
             action={
               canEdit ? (
                 <button
-                  onClick={() => setShowCreate(true)}
+                  onClick={() => router.push("/dashboard/persons/new")}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700"
                 >
                   Registrar primer caso
@@ -185,75 +162,6 @@ export default function PersonsPage() {
         )}
       </div>
 
-      {/* Modal registrar persona */}
-      <Modal open={showCreate} title="Registrar persona desaparecida" onClose={() => setShowCreate(false)}>
-        <form onSubmit={handleCreate} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Nombre completo *</label>
-            <input
-              required
-              value={form.full_name}
-              onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Fecha desaparición *</label>
-            <input
-              required
-              type="date"
-              value={form.disappeared_at}
-              onChange={(e) => setForm({ ...form, disappeared_at: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Última ubicación conocida</label>
-            <input
-              value={form.last_known_location ?? ""}
-              onChange={(e) => setForm({ ...form, last_known_location: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Descripción física</label>
-            <textarea
-              rows={2}
-              value={form.physical_description ?? ""}
-              onChange={(e) => setForm({ ...form, physical_description: e.target.value })}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Reportado por</label>
-              <input
-                value={form.reporter_name ?? ""}
-                onChange={(e) => setForm({ ...form, reporter_name: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Contacto</label>
-              <input
-                value={form.reporter_contact ?? ""}
-                onChange={(e) => setForm({ ...form, reporter_contact: e.target.value })}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <button type="button" onClick={() => setShowCreate(false)}
-              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
-              {saving ? "Registrando…" : "Registrar"}
-            </button>
-          </div>
-        </form>
-      </Modal>
     </div>
   );
 }
