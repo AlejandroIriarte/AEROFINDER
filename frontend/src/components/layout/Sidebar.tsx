@@ -204,7 +204,12 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
   const isActive   = (href: string) => pathname === href || pathname.startsWith(href + "/");
 
   return (
-    <aside className={`flex h-screen flex-col border-r border-slate-200 bg-white transition-all duration-200 flex-shrink-0 overflow-hidden ${isOpen ? "w-[216px]" : "w-[52px]"}`}>
+    <aside className={`
+      flex h-screen flex-col border-r border-slate-200 bg-white transition-all duration-200 overflow-hidden flex-shrink-0
+      md:relative md:translate-x-0
+      fixed top-0 left-0 z-50
+      ${isOpen ? "translate-x-0 w-[216px]" : "-translate-x-full md:translate-x-0 w-[216px] md:w-[52px]"}
+    `}>
       <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
         <SectionLabel label="Operaciones" isOpen={isOpen} />
         {opsItems.map((item) => <NavLink key={item.href} item={item} isOpen={isOpen} isActive={isActive(item.href)} />)}
