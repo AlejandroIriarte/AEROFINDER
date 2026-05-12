@@ -75,8 +75,8 @@ function InfoSection({ person }: { person: MissingPerson }) {
       </h2>
       <dl className="space-y-3">
         {rows.map(([label, value]) => (
-          <div key={label} className="flex gap-4 text-sm">
-            <dt className="w-40 shrink-0 font-medium text-gray-500">{label}</dt>
+          <div key={label} className="flex flex-col sm:flex-row sm:gap-4 text-sm">
+            <dt className="font-medium text-gray-400 sm:w-40 sm:shrink-0 sm:text-gray-500 text-xs sm:text-sm">{label}</dt>
             <dd className="text-gray-900">{value}</dd>
           </div>
         ))}
