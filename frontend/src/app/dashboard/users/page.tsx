@@ -1,14 +1,37 @@
-// Gestión de usuarios. Solo admin. Tabla con toggle activo, cambio de rol y creación.
+// Gestión de usuarios. Solo admin.
+// Tabla con teléfono, toggle activo, cambio de rol, edición de nombre/teléfono y desactivación.
 "use client";
 
 import { useEffect, useState } from "react";
 import { useAuthStore } from "@/store/auth";
 import { usersApi } from "@/lib/api";
-import type { User, UserCreate } from "@/lib/types";
+import type { User, UserCreate, UserUpdate } from "@/lib/types";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Modal } from "@/components/ui/Modal";
 import { PageHeader } from "@/components/dashboard/PageHeader";
+
+// ── Íconos inline ─────────────────────────────────────────────────────────────
+
+function IconPencil() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
+  );
+}
+
+function IconBan() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </svg>
+  );
+}
+
+// ── Componente principal ──────────────────────────────────────────────────────
 
 export default function UsersPage() {
   const currentUser = useAuthStore((s) => s.user);
@@ -17,15 +40,21 @@ export default function UsersPage() {
   const [roles, setRoles]           = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState<string | null>(null);
+
+  // Modal crear
   const [showCreate, setShowCreate] = useState(false);
   const [saving, setSaving]         = useState(false);
-
   const [form, setForm] = useState<UserCreate>({
-    email: "",
-    password: "",
-    full_name: "",
-    role_id: "",
+    email: "", password: "", full_name: "", phone: "", role_id: "",
   });
+
+  // Modal editar
+  const [editTarget, setEditTarget]   = useState<User | null>(null);
+  const [editForm, setEditForm]       = useState<Pick<UserUpdate, "full_name" | "phone">>({ full_name: "", phone: "" });
+  const [editSaving, setEditSaving]   = useState(false);
+
+  // Desactivar
+  const [deactivating, setDeactivating] = useState<string | null>(null);
 
   const isAdmin = currentUser?.role === "admin";
 
@@ -49,6 +78,8 @@ export default function UsersPage() {
       </div>
     );
   }
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
 
   async function handleToggleActive(user: User) {
     try {
@@ -76,13 +107,52 @@ export default function UsersPage() {
       const created = await usersApi.create(form);
       setUsers((prev) => [...prev, created]);
       setShowCreate(false);
-      setForm({ email: "", password: "", full_name: "", role_id: roles[0]?.id ?? "" });
+      setForm({ email: "", password: "", full_name: "", phone: "", role_id: roles[0]?.id ?? "" });
     } catch {
       alert("Error al crear usuario");
     } finally {
       setSaving(false);
     }
   }
+
+  function openEdit(user: User) {
+    setEditTarget(user);
+    setEditForm({ full_name: user.full_name, phone: user.phone ?? "" });
+  }
+
+  async function handleEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editTarget) return;
+    setEditSaving(true);
+    try {
+      const updated = await usersApi.update(editTarget.id, {
+        full_name: editForm.full_name,
+        phone: editForm.phone || undefined,
+      });
+      setUsers((prev) => prev.map((u) => (u.id === editTarget.id ? updated : u)));
+      setEditTarget(null);
+    } catch {
+      alert("Error al guardar cambios");
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function handleDeactivate(user: User) {
+    if (!confirm(`¿Desactivar a ${user.full_name}? El usuario no podrá iniciar sesión.`)) return;
+    setDeactivating(user.id);
+    try {
+      await usersApi.deactivate(user.id);
+      // Soft-delete: marcamos inactivo localmente en vez de quitar de la lista
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? { ...u, is_active: false } : u)));
+    } catch {
+      alert("Error al desactivar usuario");
+    } finally {
+      setDeactivating(null);
+    }
+  }
+
+  // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-5">
@@ -118,9 +188,11 @@ export default function UsersPage() {
               <tr>
                 <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Nombre</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Email</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Teléfono</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Rol</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Estado</th>
                 <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Último acceso</th>
+                <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Acciones</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -128,11 +200,12 @@ export default function UsersPage() {
                 <tr key={user.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-4 py-3 font-medium text-slate-900">{user.full_name}</td>
                   <td className="px-4 py-3 text-slate-500">{user.email}</td>
+                  <td className="px-4 py-3 text-slate-400">{user.phone ?? "—"}</td>
                   <td className="px-4 py-3">
                     <select
                       value={roles.find((r) => r.name === user.role)?.id ?? ""}
                       onChange={(e) => handleRoleChange(user, e.target.value)}
-                      className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="rounded-lg border border-slate-200 px-2 py-1 text-[11px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-40"
                       disabled={user.id === currentUser?.id}
                     >
                       {roles.map((r) => (
@@ -158,6 +231,29 @@ export default function UsersPage() {
                       ? new Date(user.last_login_at).toLocaleDateString("es-BO")
                       : "Nunca"}
                   </td>
+                  <td className="px-4 py-3">
+                    <div className="flex items-center gap-1.5">
+                      {/* Editar nombre/teléfono */}
+                      <button
+                        onClick={() => openEdit(user)}
+                        title="Editar nombre y teléfono"
+                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-blue-600 transition-colors"
+                      >
+                        <IconPencil />
+                      </button>
+                      {/* Desactivar */}
+                      {user.id !== currentUser?.id && user.is_active && (
+                        <button
+                          onClick={() => handleDeactivate(user)}
+                          disabled={deactivating === user.id}
+                          title="Desactivar usuario"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors disabled:opacity-40"
+                        >
+                          <IconBan />
+                        </button>
+                      )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -165,6 +261,7 @@ export default function UsersPage() {
         </div>
       )}
 
+      {/* ── Modal: Crear usuario ────────────────────────────────────────────── */}
       <Modal open={showCreate} title="Nuevo usuario" onClose={() => setShowCreate(false)}>
         <form onSubmit={handleCreate} className="space-y-3">
           <div>
@@ -177,6 +274,13 @@ export default function UsersPage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">Email *</label>
             <input required type="email" value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Teléfono</label>
+            <input type="tel" value={form.phone ?? ""}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="+591 7xxxxxxx"
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
           </div>
           <div>
@@ -203,6 +307,42 @@ export default function UsersPage() {
             <button type="submit" disabled={saving}
               className="rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
               {saving ? "Creando…" : "Crear usuario"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ── Modal: Editar nombre y teléfono ────────────────────────────────── */}
+      <Modal
+        open={editTarget !== null}
+        title={`Editar — ${editTarget?.full_name ?? ""}`}
+        onClose={() => setEditTarget(null)}
+      >
+        <form onSubmit={handleEdit} className="space-y-3">
+          <p className="text-[11px] text-slate-400">
+            Los cambios quedan registrados en el log de auditoría del sistema.
+          </p>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Nombre completo *</label>
+            <input required value={editForm.full_name}
+              onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Teléfono</label>
+            <input type="tel" value={editForm.phone ?? ""}
+              onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+              placeholder="+591 7xxxxxxx"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setEditTarget(null)}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[12px] font-medium text-slate-700 hover:bg-slate-50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={editSaving}
+              className="rounded-lg bg-blue-600 px-3 py-2 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50">
+              {editSaving ? "Guardando…" : "Guardar cambios"}
             </button>
           </div>
         </form>
