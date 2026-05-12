@@ -40,6 +40,11 @@ body {
   .conf-fill-low  { background: #ef4444; height: 100%; border-radius: 2px; }
 
   .drone-flying { animation: flyingpulse 2s infinite; }
+
+  /* Safe area padding for mobile notch/home indicator */
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 }
 
 @keyframes livepulse {

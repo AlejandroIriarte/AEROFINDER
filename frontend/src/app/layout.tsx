@@ -2,7 +2,7 @@
 // AEROFINDER — Root layout: carga Inter, metadata global
 // =============================================================================
 
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Inter } from "next/font/google";
 import { AuthProvider } from "@/components/providers/AuthProvider";
@@ -17,6 +17,10 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "AEROFINDER",
   description: "Sistema de búsqueda de personas desaparecidas con drones",
+};
+
+export const viewport: Viewport = {
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
