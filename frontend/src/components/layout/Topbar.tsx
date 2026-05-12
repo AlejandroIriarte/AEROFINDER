@@ -85,17 +85,17 @@ export function Topbar({
       <div className="h-7 w-px bg-slate-200" aria-hidden="true" />
 
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-slate-500">Dashboard</span>
-        <span className="text-slate-300">/</span>
-        <span className="font-semibold text-slate-900">{breadcrumb}</span>
+      <div className="flex items-center gap-2 text-sm min-w-0">
+        <span className="hidden sm:inline text-slate-500">Dashboard</span>
+        <span className="hidden sm:inline text-slate-300">/</span>
+        <span className="font-semibold text-slate-900 truncate">{breadcrumb}</span>
       </div>
 
       {/* Spacer */}
       <div className="flex-1" />
 
       {/* Role chip */}
-      <div className={`${roleStyle.bg} ${roleStyle.text} px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
+      <div className={`hidden sm:block ${roleStyle.bg} ${roleStyle.text} px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap`}>
         {roleStyle.label}
       </div>
 
