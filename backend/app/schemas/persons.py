@@ -11,6 +11,25 @@ from pydantic import BaseModel
 from app.models.enums import MissingPersonStatus, PhotoFaceAngle, RelativeRelation
 
 
+class PhysicalAttributes(BaseModel):
+    """Atributos físicos estructurados de la persona desaparecida."""
+    weight_kg: Optional[int] = None
+    build: Optional[str] = None                  # delgado/normal/robusto/corpulento
+    skin_tone: Optional[str] = None              # muy_claro/claro/medio/moreno/oscuro
+    hair_color: Optional[str] = None             # negro/castaño/rubio/pelirrojo/canoso/blanco/calvo
+    hair_length: Optional[str] = None            # calvo/muy_corto/corto/mediano/largo
+    eye_color: Optional[str] = None              # negros/marrones/verdes/azules/grises/miel
+    wears_glasses: Optional[bool] = None
+    facial_hair: Optional[str] = None            # ninguno/barba/bigote/barba_y_bigote/incipiente
+    distinguishing_marks: Optional[str] = None   # cicatrices, lunares, tatuajes
+    clothing_upper: Optional[str] = None
+    clothing_lower: Optional[str] = None
+    clothing_footwear: Optional[str] = None
+    clothing_accessories: Optional[str] = None
+    ai_analyzed: bool = False
+    ai_confidence: Optional[float] = None
+
+
 class PersonCreate(BaseModel):
     full_name: str
     disappeared_at: date
@@ -34,6 +53,7 @@ class PersonUpdate(BaseModel):
     physical_description: Optional[str] = None
     height_cm: Optional[int] = None
     last_known_clothing: Optional[str] = None
+    physical_attributes: Optional[PhysicalAttributes] = None
     last_known_location: Optional[str] = None
     last_seen_at: Optional[datetime] = None
     disappeared_at: Optional[date] = None
@@ -57,6 +77,7 @@ class PersonResponse(BaseModel):
     physical_description: Optional[str]
     height_cm: Optional[int]
     last_known_clothing: Optional[str]
+    physical_attributes: Optional[dict] = None
     last_known_location: Optional[str]
     last_seen_at: Optional[datetime]
     status: MissingPersonStatus
@@ -117,6 +138,6 @@ class PersonReportCreate(BaseModel):
     gender: Optional[str] = None
     physical_description: Optional[str] = None
     height_cm: Optional[int] = None
-    last_known_clothing: Optional[str] = None
     last_known_location: Optional[str] = None
     last_seen_at: Optional[datetime] = None
+    physical_attributes: Optional[PhysicalAttributes] = None
