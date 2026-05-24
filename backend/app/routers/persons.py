@@ -92,6 +92,7 @@ async def create_person(
             physical_description=body.physical_description,
             height_cm=body.height_cm,
             last_known_clothing=body.last_known_clothing,
+            physical_attributes=body.physical_attributes.model_dump() if body.physical_attributes else None,
             last_known_location=body.last_known_location,
             last_seen_at=body.last_seen_at,
             status=MissingPersonStatus.active,
@@ -344,7 +345,7 @@ async def report_person_familiar(
             gender=body.gender,
             physical_description=body.physical_description,
             height_cm=body.height_cm,
-            last_known_clothing=body.last_known_clothing,
+            physical_attributes=body.physical_attributes.model_dump() if body.physical_attributes else None,
             last_known_location=body.last_known_location,
             last_seen_at=body.last_seen_at,
             status=MissingPersonStatus.pending_review,  # Queda en revisión

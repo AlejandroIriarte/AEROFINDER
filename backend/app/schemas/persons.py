@@ -39,6 +39,7 @@ class PersonCreate(BaseModel):
     physical_description: Optional[str] = None
     height_cm: Optional[int] = None
     last_known_clothing: Optional[str] = None
+    physical_attributes: Optional[PhysicalAttributes] = None
     last_known_location: Optional[str] = None
     last_seen_at: Optional[datetime] = None
     reporter_name: Optional[str] = None
