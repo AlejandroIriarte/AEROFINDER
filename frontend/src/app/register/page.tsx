@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuthStore } from "@/store/auth";
@@ -8,7 +8,10 @@ import { Toast } from "@/components/ui/Toast";
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { register, isLoading } = useAuthStore();
+  const { register }    = useAuthStore();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isInitialized   = useAuthStore((s) => s.isInitialized);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [email,           setEmail]           = useState("");
   const [password,        setPassword]        = useState("");
@@ -22,6 +25,13 @@ export default function RegisterPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType,    setToastType]    = useState<"success" | "error">("success");
   const [showToast,    setShowToast]    = useState(false);
+
+  // Redirigir si ya está autenticado
+  useEffect(() => {
+    if (isInitialized && isAuthenticated) {
+      router.replace("/dashboard");
+    }
+  }, [isInitialized, isAuthenticated, router]);
 
   const validateForm = (): boolean => {
     const e: Record<string, string> = {};
@@ -40,26 +50,35 @@ export default function RegisterPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
-
+    setIsSubmitting(true);
     try {
       await register(email, password, fullName, phone || undefined);
       setToastMessage("Cuenta creada exitosamente. Redirigiendo a login...");
       setToastType("success");
       setShowToast(true);
       setTimeout(() => router.push("/login?email=" + encodeURIComponent(email)), 2000);
-    } catch (error) {
-      let errorMessage = "Error al crear la cuenta";
-      if (error instanceof Error) {
-        if (error.message.includes("409")) {
-          errorMessage = "Este email ya está registrado";
-          setErrors({ email: errorMessage });
-        } else {
-          errorMessage = error.message;
-        }
+    } catch (error: unknown) {
+      let errorMessage = "Error al crear la cuenta. Intentá de nuevo.";
+      const axiosError = error as { response?: { status?: number; data?: { detail?: string } }; message?: string };
+      const status = axiosError?.response?.status;
+      const detail = axiosError?.response?.data?.detail;
+
+      if (status === 409) {
+        errorMessage = "Este email ya está registrado";
+        setErrors({ email: errorMessage });
+      } else if (status === 422) {
+        errorMessage = detail || "Datos inválidos. Revisá los campos.";
+      } else if (status && status >= 500) {
+        errorMessage = "Error del servidor. Intentá más tarde.";
+      } else if (!axiosError?.response) {
+        errorMessage = "Sin conexión con el servidor. Verificá tu red.";
       }
+
       setToastMessage(errorMessage);
       setToastType("error");
       setShowToast(true);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -187,10 +206,10 @@ export default function RegisterPage() {
             {/* Submit */}
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isSubmitting}
               className="w-full rounded-lg bg-blue-600 py-2.5 text-[13px] font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Creando cuenta…" : "Crear cuenta"}
+              {isSubmitting ? "Creando cuenta…" : "Crear cuenta"}
             </button>
           </form>
 
