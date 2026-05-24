@@ -23,6 +23,11 @@ pydantic[email]==2.10.3
 pydantic-settings==2.7.0
 python-multipart==0.0.20
 
+# Procesamiento de imágenes (análisis de fotos para validación y atributos)
+Pillow>=10.0.0
+opencv-python-headless>=4.9.0
+numpy>=1.26.0
+
 # Redis Streams
 redis[hiredis]==5.2.1
 
