@@ -20,6 +20,9 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # Requiere ejecutarse como superusuario — la política fue creada por postgres,
+    # no por aerofinder_app, por lo que DROP/CREATE necesita privilegios elevados.
+    # En Docker: docker exec aerofinder_postgres psql -U postgres -d aerofinder
     op.execute("DROP POLICY IF EXISTS missing_persons_select ON missing_persons")
     op.execute("""
         CREATE POLICY missing_persons_select
