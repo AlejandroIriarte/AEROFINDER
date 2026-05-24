@@ -136,27 +136,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Evitar doble invocación (AuthProvider + InnerLayout montan en paralelo)
     if (get().isInitialized || get().isLoading) return;
 
-    let { accessToken } = get();
     const { refreshToken: doRefresh } = get() as AuthState & {
       refreshToken: () => Promise<boolean>;
     };
+
+    let { accessToken } = get();
 
     // Intentar recuperar token desde localStorage si no está en memoria
     if (!accessToken && typeof window !== "undefined") {
       const stored = localStorage.getItem(TOKEN_KEY);
       if (stored) {
         accessToken = stored;
-        set({ accessToken: stored, isAuthenticated: true });
+        set({ accessToken: stored });
       }
     }
 
-    // Si sigue sin token, intentar refresh desde cookie
+    // Sin token en memoria ni localStorage → intentar refresh desde cookie
     if (!accessToken) {
       const refreshed = await doRefresh();
       if (!refreshed) {
-        set({ isInitialized: true });   // sin token, inicialización completa
+        set({ isInitialized: true });
         return;
       }
+      accessToken = get().accessToken;
     }
 
     set({ isLoading: true });
@@ -164,10 +166,25 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const user = await authApi.me();
       set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
     } catch {
-      // Token inválido: limpiar
+      // Access token expirado — limpiar localStorage y reintentar con refresh
       if (typeof window !== "undefined") {
         localStorage.removeItem(TOKEN_KEY);
       }
+      set({ accessToken: null });
+
+      const refreshed = await doRefresh();
+      if (refreshed) {
+        try {
+          const user = await authApi.me();
+          set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
+          return;
+        } catch {
+          // refresh token también inválido — caer a limpieza total
+        }
+      }
+
+      // Sin sesión recuperable
+      Cookies.remove(REFRESH_COOKIE);
       set({
         user:            null,
         accessToken:     null,
@@ -175,7 +192,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading:       false,
         isInitialized:   true,
       });
-      Cookies.remove(REFRESH_COOKIE);
     }
   },
 }));
