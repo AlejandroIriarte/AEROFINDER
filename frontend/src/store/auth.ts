@@ -40,6 +40,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // ── Setter interno para que el interceptor de axios actualice el token ───────
   setAccessToken: (token: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(TOKEN_KEY, token);
+    }
     set({ accessToken: token, isAuthenticated: true });
   },
 
@@ -102,7 +105,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accessToken:     null,
         isAuthenticated: false,
         isLoading:       false,
-        isInitialized:   false,
+        isInitialized:   true,
       });
     }
   },
@@ -135,6 +138,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loadUser: async () => {
     // Evitar doble invocación (AuthProvider + InnerLayout montan en paralelo)
     if (get().isInitialized || get().isLoading) return;
+    set({ isLoading: true });
 
     const { refreshToken: doRefresh } = get() as AuthState & {
       refreshToken: () => Promise<boolean>;
@@ -161,7 +165,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       accessToken = get().accessToken;
     }
 
-    set({ isLoading: true });
     try {
       const user = await authApi.me();
       set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
