@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/Toast";
 import { PhotoUpload, type SelectedPhoto } from "@/components/ui/PhotoUpload";
@@ -54,6 +54,8 @@ export default function FamiliarReportPage() {
   const [photos,           setPhotos]           = useState<SelectedPhoto[]>([]);
   const [photoAnalyses,    setPhotoAnalyses]     = useState<(PhotoAnalysisResult | null)[]>([]);
   const [analyzingIndexes, setAnalyzingIndexes]  = useState<number[]>([]);
+  const [aiAutoFilled,     setAiAutoFilled]       = useState(false);
+  // Ref para leer valor actualizado dentro de callbacks async sin recapturar en deps
   const aiAutoFilledRef = useRef(false);
 
   // ── Acordeones ────────────────────────────────────────────────────────────
@@ -68,6 +70,14 @@ export default function FamiliarReportPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType,    setToastType]    = useState<"success" | "error">("success");
   const [showToast,    setShowToast]    = useState(false);
+
+  // Limpiar object URLs al desmontar el componente
+  useEffect(() => {
+    return () => {
+      photos.forEach((p) => { if (p.preview) URL.revokeObjectURL(p.preview); });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const showNotification = (type: "success" | "error", message: string) => {
     setToastMessage(message); setToastType(type); setShowToast(true);
@@ -87,33 +97,47 @@ export default function FamiliarReportPage() {
   const handlePhotosChange = useCallback(async (newPhotos: SelectedPhoto[]) => {
     setPhotos(newPhotos);
 
-    const newIndexes: number[] = [];
-    newPhotos.forEach((p, i) => {
-      if (p.status === "pending" && photoAnalyses[i] === undefined) {
-        newIndexes.push(i);
-      }
-    });
+    // Detectar fotos pending sin análisis previo (undefined = nunca analizada)
+    const newIndexes = newPhotos
+      .map((p, i) => (p.status === "pending" && p.file ? i : -1))
+      .filter((i) => i >= 0);
 
     if (newIndexes.length === 0) return;
 
+    // Inicializar slots faltantes en el array de análisis
+    setPhotoAnalyses((prev) => {
+      const updated = [...prev];
+      while (updated.length < newPhotos.length) updated.push(null);
+      return updated;
+    });
+
     setAnalyzingIndexes((prev) => [...prev, ...newIndexes]);
-    const newAnalyses = [...photoAnalyses];
-    while (newAnalyses.length < newPhotos.length) newAnalyses.push(null);
 
     for (const idx of newIndexes) {
       const photo = newPhotos[idx];
-      if (!photo || photo.status === "error") continue;
+      if (!photo || photo.status === "error") {
+        setAnalyzingIndexes((prev) => prev.filter((i) => i !== idx));
+        continue;
+      }
       try {
         const result = await photosApi.analyzePhoto(photo.file);
-        newAnalyses[idx] = result;
+
+        // Escribir resultado inmediatamente via updater — evita stale closure
+        setPhotoAnalyses((prev) => {
+          const updated = [...prev];
+          while (updated.length <= idx) updated.push(null);
+          updated[idx] = result;
+          return updated;
+        });
 
         if (result.quality.is_useful && !aiAutoFilledRef.current) {
           aiAutoFilledRef.current = true;
+          setAiAutoFilled(true);
           setAttrs((prev) => ({
             ...prev,
-            skin_tone:    result.attributes.skin_tone  || prev.skin_tone,
-            hair_color:   result.attributes.hair_color || prev.hair_color,
-            ai_analyzed:  true,
+            skin_tone:     result.attributes.skin_tone  || prev.skin_tone,
+            hair_color:    result.attributes.hair_color || prev.hair_color,
+            ai_analyzed:   true,
             ai_confidence: result.quality.blur_score,
           }));
           setShowPhysical(true);
@@ -122,13 +146,18 @@ export default function FamiliarReportPage() {
           showNotification("error", `Foto ${idx + 1}: ${result.quality.issue_labels[0] ?? "baja calidad para IA"}. Se recomienda una mejor foto.`);
         }
       } catch {
-        newAnalyses[idx] = null;
+        setPhotoAnalyses((prev) => {
+          const updated = [...prev];
+          while (updated.length <= idx) updated.push(null);
+          updated[idx] = null;
+          return updated;
+        });
+        showNotification("error", `No se pudo analizar la foto ${idx + 1}.`);
+      } finally {
+        setAnalyzingIndexes((prev) => prev.filter((i) => i !== idx));
       }
     }
-
-    setPhotoAnalyses([...newAnalyses]);
-    setAnalyzingIndexes((prev) => prev.filter((i) => !newIndexes.includes(i)));
-  }, [photoAnalyses]);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -180,13 +209,9 @@ export default function FamiliarReportPage() {
       setUploadStep("Creando reporte…");
 
       // Limpiar atributos vacíos antes de enviar
-      const cleanAttrs: PhysicalAttributes = {};
-      (Object.keys(attrs) as (keyof PhysicalAttributes)[]).forEach((k) => {
-        const v = attrs[k];
-        if (v !== "" && v !== undefined && v !== null) {
-          (cleanAttrs as Record<string, unknown>)[k] = v;
-        }
-      });
+      const cleanAttrs = Object.fromEntries(
+        Object.entries(attrs).filter(([, v]) => v !== "" && v !== undefined && v !== null)
+      ) as PhysicalAttributes;
 
       const payload: PersonReportCreate = {
         full_name:            formData.full_name,
@@ -321,7 +346,7 @@ export default function FamiliarReportPage() {
               onClick={() => setShowPhysical(!showPhysical)}>
               <span className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
                 Características físicas
-                {aiAutoFilledRef.current && (
+                {aiAutoFilled && (
                   <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
                     completado por IA
                   </span>
@@ -453,16 +478,18 @@ export default function FamiliarReportPage() {
             </button>
             {showClothing && (
               <div className="px-5 pb-5 space-y-3 border-t border-slate-100 pt-4">
-                {[
-                  ["clothing_upper",       "Ropa superior",   "polera azul manga larga"],
-                  ["clothing_lower",       "Ropa inferior",   "jean negro"],
-                  ["clothing_footwear",    "Calzado",         "zapatillas blancas Nike"],
-                  ["clothing_accessories", "Accesorios",      "mochila gris, gorra negra"],
-                ].map(([name, label, placeholder]) => (
+                {(
+                  [
+                    ["clothing_upper",       "Ropa superior",   "polera azul manga larga"],
+                    ["clothing_lower",       "Ropa inferior",   "jean negro"],
+                    ["clothing_footwear",    "Calzado",         "zapatillas blancas Nike"],
+                    ["clothing_accessories", "Accesorios",      "mochila gris, gorra negra"],
+                  ] as Array<[keyof PhysicalAttributes, string, string]>
+                ).map(([name, label, placeholder]) => (
                   <div key={name}>
                     <label className="block text-[11px] font-medium text-slate-600 mb-1">{label}</label>
                     <input type="text" name={name}
-                      value={(attrs as Record<string, string>)[name] ?? ""}
+                      value={(attrs[name] as string) ?? ""}
                       onChange={handleAttr} placeholder={`Ej: ${placeholder}`}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>

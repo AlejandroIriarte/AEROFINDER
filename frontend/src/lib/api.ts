@@ -342,11 +342,8 @@ export const photosApi = {
   async analyzePhoto(file: File): Promise<PhotoAnalysisResult> {
     const formData = new FormData();
     formData.append("file", file);
-    const { data } = await api.post<PhotoAnalysisResult>(
-      "/photos/analyze",
-      formData,
-      { headers: { "Content-Type": "multipart/form-data" } }
-    );
+    // Sin Content-Type explícito: axios lo setea automáticamente con el boundary correcto
+    const { data } = await api.post<PhotoAnalysisResult>("/photos/analyze", formData);
     return data;
   },
 };
