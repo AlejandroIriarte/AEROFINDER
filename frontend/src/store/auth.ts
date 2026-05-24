@@ -73,7 +73,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       // Obtener datos del usuario inmediatamente
       const user = await authApi.me();
-      set({ user, isLoading: false });
+      set({ user, isLoading: false, isInitialized: true });
 
       // Guardar refresh_token en cookie si el backend lo devuelve
       const refreshToken = response.refresh_token;
@@ -102,6 +102,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accessToken:     null,
         isAuthenticated: false,
         isLoading:       false,
+        isInitialized:   false,
       });
     }
   },
@@ -125,6 +126,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // ── Carga del usuario al restaurar sesión ─────────────────────────────────────
   loadUser: async () => {
+    // Evitar doble invocación (AuthProvider + InnerLayout montan en paralelo)
+    if (get().isInitialized || get().isLoading) return;
+
     let { accessToken } = get();
     const { refreshToken: doRefresh } = get() as AuthState & {
       refreshToken: () => Promise<boolean>;
