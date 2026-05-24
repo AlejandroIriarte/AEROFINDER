@@ -237,9 +237,15 @@ run_migrations() {
     upgrade_sql=$(docker compose exec -T backend alembic upgrade "${head_rev}" --sql 2>/dev/null | grep -v "^--\|^$\|^BEGIN\|^COMMIT\|alembic_version")
 
     if [ -n "$upgrade_sql" ]; then
+      local psql_exit
       docker compose exec -T postgres psql -U postgres -d aerofinder <<-EOSQL
 ${upgrade_sql}
 EOSQL
+      psql_exit=$?
+      if [ $psql_exit -ne 0 ]; then
+        warn "psql falló (exit ${psql_exit}) — NO se marcó la migración. Revisá manualmente: docker compose exec backend alembic upgrade head"
+        return 1
+      fi
     fi
 
     # Marcar la revisión como aplicada en alembic_version
