@@ -179,6 +179,81 @@ wait_for_backend() {
   return 1
 }
 
+# ── Sincronizar contraseñas de roles en cada arranque ────────────────────────
+sync_db_passwords() {
+  info "Sincronizando contraseñas de roles de DB con .env ..."
+  local app_pass worker_pass
+  app_pass=$(grep  '^POSTGRES_APP_PASSWORD='    .env 2>/dev/null | cut -d= -f2)
+  worker_pass=$(grep '^POSTGRES_WORKER_PASSWORD=' .env 2>/dev/null | cut -d= -f2)
+
+  if [ -z "$app_pass" ] || [ -z "$worker_pass" ]; then
+    warn "No se encontraron POSTGRES_APP_PASSWORD / POSTGRES_WORKER_PASSWORD en .env — omitiendo sync."
+    return
+  fi
+
+  # Esperar a que postgres esté listo (hasta 30s)
+  local i=0
+  until docker compose exec -T postgres pg_isready -U postgres -q 2>/dev/null || [ $i -ge 15 ]; do
+    sleep 2; i=$((i+1))
+  done
+
+  docker compose exec -T postgres psql -U postgres <<-EOSQL
+    ALTER ROLE aerofinder_app    PASSWORD '${app_pass}';
+    ALTER ROLE aerofinder_worker PASSWORD '${worker_pass}';
+EOSQL
+  ok "Contraseñas de roles sincronizadas."
+}
+
+# ── Aplicar migraciones Alembic en cada arranque ─────────────────────────────
+run_migrations() {
+  info "Aplicando migraciones de base de datos..."
+
+  # Intentar upgrade normal primero
+  local output exit_code
+  output=$(docker compose exec -T backend alembic upgrade head 2>&1)
+  exit_code=$?
+
+  if [ $exit_code -eq 0 ]; then
+    ok "Migraciones aplicadas."
+    return
+  fi
+
+  # Detectar fallo por ownership DDL (InsufficientPrivilegeError)
+  if echo "$output" | grep -q "InsufficientPrivilegeError\|must be owner"; then
+    warn "Fallo de permisos DDL — aplicando como superusuario postgres..."
+
+    # Obtener la revisión head y la actual para saber qué migration falló
+    local head_rev current_rev
+    head_rev=$(docker compose exec -T backend alembic heads 2>/dev/null | awk '{print $1}' | head -1)
+    current_rev=$(docker compose exec -T backend alembic current 2>/dev/null | grep -v INFO | awk '{print $1}' | head -1)
+
+    if [ -z "$head_rev" ] || [ "$head_rev" = "$current_rev" ]; then
+      warn "No se pudo determinar la revisión pendiente. Revisá manualmente: docker compose exec backend alembic upgrade head"
+      return 1
+    fi
+
+    # Extraer el SQL de upgrade de la migración pendiente y ejecutarlo como postgres
+    local upgrade_sql
+    upgrade_sql=$(docker compose exec -T backend alembic upgrade "${head_rev}" --sql 2>/dev/null | grep -v "^--\|^$\|^BEGIN\|^COMMIT\|alembic_version")
+
+    if [ -n "$upgrade_sql" ]; then
+      docker compose exec -T postgres psql -U postgres -d aerofinder <<-EOSQL
+${upgrade_sql}
+EOSQL
+    fi
+
+    # Marcar la revisión como aplicada en alembic_version
+    docker compose exec -T backend alembic stamp "${head_rev}" 2>&1 | grep -v INFO
+    ok "Migración ${head_rev} aplicada como superusuario."
+    return
+  fi
+
+  # Otro tipo de error — mostrar output y advertir
+  warn "Error en migraciones (no DDL ownership):"
+  echo "$output" | tail -10
+  warn "Revisá manualmente: docker compose exec backend alembic upgrade head"
+}
+
 # ── minio-init (one-shot) ─────────────────────────────────────────────────────
 run_minio_init() {
   # Solo correr si minio-init no completó todavía (no hay estado "exited 0")
@@ -257,6 +332,12 @@ cmd_start() {
   info "Iniciando contenedores ..."
   docker compose up -d
 
+  step "Sincronizando contraseñas DB"
+  sync_db_passwords
+
+  step "Aplicando migraciones"
+  run_migrations
+
   step "Inicializando MinIO"
   run_minio_init
 
@@ -328,6 +409,8 @@ cmd_status() {
     printf "  %-14s %b  %s\n" "$label" "$status" "$url"
   done
   echo ""
+  # Mostrar resumen de acceso (IP, panel y URL de 'connect' con QR)
+  print_access_summary
 }
 
 cmd_logs() {
@@ -394,6 +477,21 @@ cmd_ip() {
   echo ""
 }
 
+cmd_sync_ip() {
+  [ -f .env ] || err ".env no encontrado."
+  local current_ip configured_ip
+  current_ip=$(detect_local_ip)
+  configured_ip=$(grep '^SERVER_HOST=' .env 2>/dev/null | cut -d= -f2 | tr -d '"' || echo "")
+
+  if [ "$configured_ip" = "$current_ip" ] && [ -n "$current_ip" ]; then
+    ok "IP sin cambios: ${current_ip}"
+    exit 0
+  fi
+
+  warn "IP cambió: ${configured_ip:-<no configurada>} → ${current_ip}"
+  cmd_ip "$current_ip"
+}
+
 cmd_health() {
   step "Health check del sistema"
   local host="localhost"
@@ -439,6 +537,7 @@ case "$COMMAND" in
   status)  cmd_status ;;
   logs)    cmd_logs "$@" ;;
   ip)      cmd_ip "$@" ;;
+  sync-ip) cmd_sync_ip ;;
   health)  cmd_health ;;
   -h|--help|help) usage ;;
   *) err "Comando desconocido: '${COMMAND}'. Usar --help para ver la ayuda." ;;
