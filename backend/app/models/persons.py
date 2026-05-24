@@ -8,7 +8,7 @@ from datetime import date, datetime
 from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, Date, Float, ForeignKey, SmallInteger, Text, text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base, CreatedAtMixin, TimestampMixin, UUIDPrimaryKeyMixin
@@ -77,6 +77,8 @@ class MissingPerson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     # Campos físicos para el pipeline de IA y búsqueda
     height_cm: Mapped[Optional[int]] = mapped_column(SmallInteger, nullable=True)
     last_known_clothing: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    # Atributos físicos estructurados: complexión, tono piel, cabello, ropa, etc.
+    physical_attributes: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
 
     # Origen del registro: manual | public_form | gov_import
     source: Mapped[str] = mapped_column(
