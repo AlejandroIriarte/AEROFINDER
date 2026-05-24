@@ -23,7 +23,9 @@ function validateEmail(email: string): boolean {
 export default function LoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const login  = useAuthStore((s) => s.login);
+  const login            = useAuthStore((s) => s.login);
+  const isAuthenticated  = useAuthStore((s) => s.isAuthenticated);
+  const isInitialized    = useAuthStore((s) => s.isInitialized);
   const formRef = useRef<HTMLFormElement>(null);
 
   const [email,          setEmail]          = useState("");
@@ -32,6 +34,15 @@ export default function LoginPage() {
   const [errors,         setErrors]         = useState<FormErrors>({});
   const [isLoading,      setIsLoading]      = useState(false);
   const [showPassword,   setShowPassword]   = useState(false);
+
+  // Redirigir si ya está autenticado
+  useEffect(() => {
+    if (isInitialized && isAuthenticated) {
+      const next = searchParams.get("next");
+      const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      router.replace(dest);
+    }
+  }, [isInitialized, isAuthenticated, router, searchParams]);
 
   // Pre-llenar email si viene del flujo de registro
   useEffect(() => {
@@ -69,7 +80,9 @@ export default function LoginPage() {
       if (rememberDevice && typeof window !== "undefined") {
         localStorage.setItem("aerofinder_remember_device", "true");
       }
-      router.replace("/dashboard");
+      const next = searchParams.get("next");
+      const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      router.replace(dest);
     } catch (err: unknown) {
       const axiosErr = err as {
         response?: { status?: number; data?: { detail?: string | { msg: string }[] } };
