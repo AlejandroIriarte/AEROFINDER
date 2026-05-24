@@ -114,11 +114,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const newToken = await authApi.refresh(refreshToken);
+      // Persistir en localStorage para que la próxima recarga lo encuentre
+      if (typeof window !== "undefined") {
+        localStorage.setItem(TOKEN_KEY, newToken);
+      }
       set({ accessToken: newToken, isAuthenticated: true });
       return true;
     } catch {
       // Token inválido o expirado: limpiar sesión
       Cookies.remove(REFRESH_COOKIE);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem(TOKEN_KEY);
+      }
       set({ user: null, accessToken: null, isAuthenticated: false });
       return false;
     }
