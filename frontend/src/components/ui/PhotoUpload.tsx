@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
+import type { PhotoAnalysisResult } from "@/lib/types";
 
 // Tipos válidos de imagen y tamaño máximo
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -19,6 +20,8 @@ interface PhotoUploadProps {
   onChange: (photos: SelectedPhoto[]) => void;
   maxPhotos?: number;
   disabled?: boolean;
+  analyses?: (PhotoAnalysisResult | null)[];
+  analyzingIndexes?: number[];
 }
 
 export function PhotoUpload({
@@ -26,6 +29,8 @@ export function PhotoUpload({
   onChange,
   maxPhotos = MAX_PHOTOS,
   disabled = false,
+  analyses = [],
+  analyzingIndexes = [],
 }: PhotoUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
@@ -206,6 +211,37 @@ export function PhotoUpload({
                 </div>
               )}
 
+              {/* Badge análisis IA */}
+              {analyzingIndexes.includes(index) && (
+                <div className="absolute bottom-0 left-0 right-0 bg-blue-600/90 px-2 py-1 flex items-center gap-1">
+                  <div className="h-2.5 w-2.5 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                  <p className="text-[10px] text-white">Analizando…</p>
+                </div>
+              )}
+              {analyses[index] && !analyzingIndexes.includes(index) && photo.status !== "error" && (
+                <div className={`absolute bottom-0 left-0 right-0 px-2 py-1 flex items-center gap-1 ${
+                  analyses[index]!.quality.is_useful ? "bg-green-600/90" : "bg-amber-500/90"
+                }`}>
+                  {analyses[index]!.quality.is_useful ? (
+                    <>
+                      <svg className="h-3 w-3 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <p className="text-[10px] text-white">Útil para IA</p>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3 w-3 text-white flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-[10px] text-white truncate">
+                        {analyses[index]!.quality.issue_labels[0] ?? "Baja calidad"}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+
               {/* Botón eliminar */}
               {!disabled && photo.status !== "uploading" && (
                 <button
@@ -229,7 +265,8 @@ export function PhotoUpload({
       )}
 
       <p className="text-xs text-gray-500">
-        Las fotos son esenciales para la búsqueda con IA. Sube al menos una foto clara del rostro.
+        Sube una foto reciente con la cara visible y bien iluminada para activar el reconocimiento con IA.
+        Formatos: JPG, PNG, WebP. Máximo 5MB por foto.
       </p>
     </div>
   );
