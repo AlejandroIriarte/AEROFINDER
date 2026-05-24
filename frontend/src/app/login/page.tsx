@@ -39,7 +39,7 @@ export default function LoginPage() {
   useEffect(() => {
     if (isInitialized && isAuthenticated) {
       const next = searchParams.get("next");
-      const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      const dest = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/dashboard";
       router.replace(dest);
     }
   }, [isInitialized, isAuthenticated, router, searchParams]);
@@ -81,7 +81,7 @@ export default function LoginPage() {
         localStorage.setItem("aerofinder_remember_device", "true");
       }
       const next = searchParams.get("next");
-      const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+      const dest = next && next.startsWith("/") && !next.startsWith("//") && !next.startsWith("/\\") ? next : "/dashboard";
       router.replace(dest);
     } catch (err: unknown) {
       const axiosErr = err as {
