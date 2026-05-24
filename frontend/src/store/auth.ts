@@ -20,6 +20,7 @@ interface AuthState {
   accessToken:     string | null;
   isLoading:       boolean;
   isAuthenticated: boolean;
+  isInitialized:   boolean;           // ← nuevo
 
   // Acciones
   register:       (email: string, password: string, fullName: string, phone?: string) => Promise<void>;
@@ -35,6 +36,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   accessToken:     null,
   isLoading:       false,
   isAuthenticated: false,
+  isInitialized:   false,             // ← nuevo
 
   // ── Setter interno para que el interceptor de axios actualice el token ───────
   setAccessToken: (token: string) => {
@@ -45,12 +47,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (email: string, password: string, fullName: string, phone?: string) => {
     set({ isLoading: true });
     try {
-      // Crear cuenta en el backend (sin login, solo registro)
       await authApi.register(email, password, fullName, phone);
-      // El usuario debe hacer login manualmente desde la página de login
     } catch (error) {
-      set({ isLoading: false });
       throw error;
+    } finally {
+      set({ isLoading: false });
     }
   },
 
@@ -141,13 +142,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // Si sigue sin token, intentar refresh desde cookie
     if (!accessToken) {
       const refreshed = await doRefresh();
-      if (!refreshed) return;
+      if (!refreshed) {
+        set({ isInitialized: true });   // sin token, inicialización completa
+        return;
+      }
     }
 
     set({ isLoading: true });
     try {
       const user = await authApi.me();
-      set({ user, isAuthenticated: true, isLoading: false });
+      set({ user, isAuthenticated: true, isLoading: false, isInitialized: true });
     } catch {
       // Token inválido: limpiar
       if (typeof window !== "undefined") {
@@ -158,6 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         accessToken:     null,
         isAuthenticated: false,
         isLoading:       false,
+        isInitialized:   true,
       });
       Cookies.remove(REFRESH_COOKIE);
     }

@@ -54,6 +54,7 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   const user            = useAuthStore((s) => s.user);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isLoading       = useAuthStore((s) => s.isLoading);
+  const isInitialized   = useAuthStore((s) => s.isInitialized);
   const loadUser        = useAuthStore((s) => s.loadUser);
   const breadcrumb      = useBreadcrumb();
   const badges          = useSidebarBadges();
@@ -72,15 +73,18 @@ function InnerLayout({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    if (!isAuthenticated && !isLoading) loadUser();
+    if (!isInitialized) loadUser();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.replace("/login");
-  }, [isLoading, isAuthenticated, router]);
+    // Solo redirigir cuando la inicialización completó y no está autenticado
+    if (isInitialized && !isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isInitialized, isLoading, isAuthenticated, router]);
 
-  if (isLoading || !isAuthenticated || !user) {
+  if (!isInitialized || isLoading || !isAuthenticated || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <div className="text-center text-slate-400">
