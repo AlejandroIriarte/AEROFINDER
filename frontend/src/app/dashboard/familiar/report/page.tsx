@@ -1,470 +1,510 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/Toast";
 import { PhotoUpload, type SelectedPhoto } from "@/components/ui/PhotoUpload";
 import { personsApi, photosApi } from "@/lib/api";
-import type { PersonReportCreate } from "@/lib/types";
+import type { PersonReportCreate, PhysicalAttributes, PhotoAnalysisResult } from "@/lib/types";
+
+// ── Opciones de selectores ──────────────────────────────────────────────────
+const GENDER_OPTIONS     = [["", "No especificado"], ["M", "Masculino"], ["F", "Femenino"], ["O", "Otro"]];
+const BUILD_OPTIONS      = [["", "—"], ["delgado", "Delgado"], ["normal", "Normal"], ["robusto", "Robusto"], ["corpulento", "Corpulento"]];
+const SKIN_OPTIONS       = [["", "—"], ["muy_claro", "Muy claro"], ["claro", "Claro"], ["medio", "Medio"], ["moreno", "Moreno"], ["oscuro", "Oscuro"]];
+const HAIR_COLOR_OPTIONS = [["", "—"], ["negro", "Negro"], ["castaño", "Castaño"], ["rubio", "Rubio"], ["pelirrojo", "Pelirrojo"], ["canoso", "Canoso"], ["blanco", "Blanco"], ["calvo", "Calvo"]];
+const HAIR_LENGTH_OPTIONS = [["", "—"], ["calvo", "Calvo"], ["muy_corto", "Muy corto"], ["corto", "Corto"], ["mediano", "Mediano"], ["largo", "Largo"]];
+const EYE_COLOR_OPTIONS  = [["", "—"], ["negros", "Negros"], ["marrones", "Marrones"], ["verdes", "Verdes"], ["azules", "Azules"], ["grises", "Grises"], ["miel", "Miel"]];
+const FACIAL_HAIR_OPTIONS = [["", "—"], ["ninguno", "Ninguno"], ["barba", "Barba"], ["bigote", "Bigote"], ["barba_y_bigote", "Barba y bigote"], ["incipiente", "Incipiente"]];
+
+const EMPTY_ATTRS: PhysicalAttributes = {
+  weight_kg: undefined,
+  build: "",
+  skin_tone: "",
+  hair_color: "",
+  hair_length: "",
+  eye_color: "",
+  wears_glasses: false,
+  facial_hair: "",
+  distinguishing_marks: "",
+  clothing_upper: "",
+  clothing_lower: "",
+  clothing_footwear: "",
+  clothing_accessories: "",
+};
 
 export default function FamiliarReportPage() {
   const router = useRouter();
 
-  // Estado del formulario
+  // ── Datos básicos ─────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
-    full_name: "",
-    gender: "not_specified",
-    date_of_birth: "",
-    disappeared_at: new Date().toISOString().split("T")[0],
+    full_name:           "",
+    gender:              "",
+    date_of_birth:       "",
+    disappeared_at:      new Date().toISOString().split("T")[0],
     last_known_location: "",
-    last_seen_at: "",
+    last_seen_at:        "",
     physical_description: "",
-    height_cm: "",
-    last_known_clothing: "",
+    height_cm:           "",
   });
 
-  // Estado de fotos
-  const [photos, setPhotos] = useState<SelectedPhoto[]>([]);
+  // ── Atributos físicos ─────────────────────────────────────────────────────
+  const [attrs, setAttrs] = useState<PhysicalAttributes>({ ...EMPTY_ATTRS });
 
-  // Estado de UI
-  const [isLoading, setIsLoading] = useState(false);
-  const [uploadStep, setUploadStep] = useState<string>("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  // ── Fotos y análisis ──────────────────────────────────────────────────────
+  const [photos,           setPhotos]           = useState<SelectedPhoto[]>([]);
+  const [photoAnalyses,    setPhotoAnalyses]     = useState<(PhotoAnalysisResult | null)[]>([]);
+  const [analyzingIndexes, setAnalyzingIndexes]  = useState<number[]>([]);
+  const aiAutoFilledRef = useRef(false);
+
+  // ── Acordeones ────────────────────────────────────────────────────────────
+  const [showPhysical, setShowPhysical] = useState(false);
+  const [showClothing, setShowClothing] = useState(false);
+  const [showNotes,    setShowNotes]    = useState(false);
+
+  // ── UI ────────────────────────────────────────────────────────────────────
+  const [isLoading,    setIsLoading]    = useState(false);
+  const [uploadStep,   setUploadStep]   = useState("");
+  const [errors,       setErrors]       = useState<Record<string, string>>({});
   const [toastMessage, setToastMessage] = useState("");
-  const [toastType, setToastType] = useState<"success" | "error">("success");
-  const [showToast, setShowToast] = useState(false);
+  const [toastType,    setToastType]    = useState<"success" | "error">("success");
+  const [showToast,    setShowToast]    = useState(false);
 
   const showNotification = (type: "success" | "error", message: string) => {
-    setToastMessage(message);
-    setToastType(type);
-    setShowToast(true);
+    setToastMessage(message); setToastType(type); setShowToast(true);
   };
 
-  // Calcular edad
   const calculateAge = (birthDate: string): number | null => {
     if (!birthDate) return null;
     const today = new Date();
     const birth = new Date(birthDate);
     let age = today.getFullYear() - birth.getFullYear();
-    const month = today.getMonth() - birth.getMonth();
-    if (month < 0 || (month === 0 && today.getDate() < birth.getDate())) {
-      age--;
-    }
+    if (today.getMonth() - birth.getMonth() < 0 ||
+        (today.getMonth() - birth.getMonth() === 0 && today.getDate() < birth.getDate())) age--;
     return age;
   };
 
-  // Validación
-  const validateForm = (): boolean => {
-    const newErrors: Record<string, string> = {};
+  // Analizar fotos nuevas automáticamente al cambiar la lista
+  const handlePhotosChange = useCallback(async (newPhotos: SelectedPhoto[]) => {
+    setPhotos(newPhotos);
 
-    if (!formData.full_name.trim()) {
-      newErrors.full_name = "El nombre es obligatorio";
-    } else if (formData.full_name.length < 3) {
-      newErrors.full_name = "El nombre debe tener al menos 3 caracteres";
-    }
+    const newIndexes: number[] = [];
+    newPhotos.forEach((p, i) => {
+      if (p.status === "pending" && photoAnalyses[i] === undefined) {
+        newIndexes.push(i);
+      }
+    });
 
-    if (!formData.date_of_birth) {
-      newErrors.date_of_birth = "La fecha de nacimiento es obligatoria";
-    } else {
-      const age = calculateAge(formData.date_of_birth);
-      if (age !== null && age < 0) {
-        newErrors.date_of_birth = "La fecha de nacimiento no es válida";
+    if (newIndexes.length === 0) return;
+
+    setAnalyzingIndexes((prev) => [...prev, ...newIndexes]);
+    const newAnalyses = [...photoAnalyses];
+    while (newAnalyses.length < newPhotos.length) newAnalyses.push(null);
+
+    for (const idx of newIndexes) {
+      const photo = newPhotos[idx];
+      if (!photo || photo.status === "error") continue;
+      try {
+        const result = await photosApi.analyzePhoto(photo.file);
+        newAnalyses[idx] = result;
+
+        if (result.quality.is_useful && !aiAutoFilledRef.current) {
+          aiAutoFilledRef.current = true;
+          setAttrs((prev) => ({
+            ...prev,
+            skin_tone:    result.attributes.skin_tone  || prev.skin_tone,
+            hair_color:   result.attributes.hair_color || prev.hair_color,
+            ai_analyzed:  true,
+            ai_confidence: result.quality.blur_score,
+          }));
+          setShowPhysical(true);
+          showNotification("success", "Foto analizada — se completaron algunos campos automáticamente.");
+        } else if (!result.quality.is_useful && result.quality.issues.length > 0) {
+          showNotification("error", `Foto ${idx + 1}: ${result.quality.issue_labels[0] ?? "baja calidad para IA"}. Se recomienda una mejor foto.`);
+        }
+      } catch {
+        newAnalyses[idx] = null;
       }
     }
 
-    if (!formData.disappeared_at) {
-      newErrors.disappeared_at = "La fecha de desaparición es obligatoria";
-    }
+    setPhotoAnalyses([...newAnalyses]);
+    setAnalyzingIndexes((prev) => prev.filter((i) => !newIndexes.includes(i)));
+  }, [photoAnalyses]);
 
-    if (!formData.last_known_location.trim()) {
-      newErrors.last_known_location = "La última ubicación conocida es obligatoria";
-    }
-
-    if (!formData.physical_description.trim()) {
-      newErrors.physical_description = "La descripción física es obligatoria";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => { const n = { ...prev }; delete n[name]; return n; });
   };
 
-  // Subir fotos a MinIO vía presigned URLs
+  const handleAttr = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
+    const { name, value, type } = e.target;
+    const checked = (e.target as HTMLInputElement).checked;
+    setAttrs((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const validateForm = (): boolean => {
+    const e: Record<string, string> = {};
+    if (!formData.full_name.trim())        e.full_name      = "El nombre es obligatorio";
+    else if (formData.full_name.length < 3) e.full_name     = "Mínimo 3 caracteres";
+    if (!formData.disappeared_at)           e.disappeared_at = "La fecha de desaparición es obligatoria";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+
   const uploadPhotos = async (personId: string): Promise<number> => {
-    const validPhotos = photos.filter(
-      (p) => p.status === "pending" || p.status === "error"
-    );
-    if (validPhotos.length === 0) return 0;
-
+    const pending = photos.filter((p) => p.status === "pending" || p.status === "error");
+    if (pending.length === 0) return 0;
     let uploaded = 0;
-
-    for (let i = 0; i < validPhotos.length; i++) {
-      const photo = validPhotos[i];
-      const idx = photos.indexOf(photo);
-      setUploadStep(`Subiendo foto ${i + 1} de ${validPhotos.length}...`);
-
-      // Marcar como uploading
-      setPhotos((prev) => {
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], status: "uploading" };
-        return updated;
-      });
-
+    for (let i = 0; i < pending.length; i++) {
+      const photo = pending[i];
+      setUploadStep(`Subiendo foto ${i + 1} de ${pending.length}…`);
+      setPhotos((prev) => { const u = [...prev]; const idx = prev.indexOf(photo); u[idx] = { ...u[idx], status: "uploading" }; return u; });
       try {
-        // 1. Obtener URL firmada
-        const { upload_url, photo_id } =
-          await photosApi.requestUploadUrl(personId);
-
-        // 2. Subir directo a MinIO
+        const { upload_url, photo_id } = await photosApi.requestUploadUrl(personId);
         await photosApi.uploadToPresignedUrl(upload_url, photo.file);
-
-        // 3. Confirmar al backend
         await photosApi.confirm(personId, photo_id);
-
-        // Marcar como uploaded
-        setPhotos((prev) => {
-          const updated = [...prev];
-          updated[idx] = { ...updated[idx], status: "uploaded" };
-          return updated;
-        });
+        setPhotos((prev) => { const u = [...prev]; const idx = prev.indexOf(photo); u[idx] = { ...u[idx], status: "uploaded" }; return u; });
         uploaded++;
-      } catch (err) {
-        console.error(`Error subiendo foto ${i + 1}:`, err);
-        setPhotos((prev) => {
-          const updated = [...prev];
-          updated[idx] = {
-            ...updated[idx],
-            status: "error",
-            errorMessage: "Error al subir",
-          };
-          return updated;
-        });
+      } catch {
+        setPhotos((prev) => { const u = [...prev]; const idx = prev.indexOf(photo); u[idx] = { ...u[idx], status: "error", errorMessage: "Error al subir" }; return u; });
       }
     }
-
     return uploaded;
   };
 
-  // Envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) return;
-
     setIsLoading(true);
-
     try {
-      // 1. Crear el reporte
-      setUploadStep("Creando reporte...");
+      setUploadStep("Creando reporte…");
+
+      // Limpiar atributos vacíos antes de enviar
+      const cleanAttrs: PhysicalAttributes = {};
+      (Object.keys(attrs) as (keyof PhysicalAttributes)[]).forEach((k) => {
+        const v = attrs[k];
+        if (v !== "" && v !== undefined && v !== null) {
+          (cleanAttrs as Record<string, unknown>)[k] = v;
+        }
+      });
+
       const payload: PersonReportCreate = {
-        full_name: formData.full_name,
-        gender: formData.gender,
-        date_of_birth: formData.date_of_birth,
-        age_at_disappearance: calculateAge(formData.date_of_birth) ?? undefined,
-        disappeared_at: formData.disappeared_at,
-        last_known_location: formData.last_known_location,
-        last_seen_at: formData.last_seen_at || undefined,
-        physical_description: formData.physical_description,
-        height_cm: formData.height_cm ? parseInt(formData.height_cm) : undefined,
-        last_known_clothing: formData.last_known_clothing || undefined,
+        full_name:            formData.full_name,
+        disappeared_at:       formData.disappeared_at,
+        gender:               formData.gender || undefined,
+        date_of_birth:        formData.date_of_birth || undefined,
+        age_at_disappearance: formData.date_of_birth ? (calculateAge(formData.date_of_birth) ?? undefined) : undefined,
+        last_known_location:  formData.last_known_location || undefined,
+        last_seen_at:         formData.last_seen_at || undefined,
+        height_cm:            formData.height_cm ? parseInt(formData.height_cm) : undefined,
+        physical_description: formData.physical_description || undefined,
+        physical_attributes:  Object.keys(cleanAttrs).length > 0 ? cleanAttrs : undefined,
       };
 
       const person = await personsApi.report(payload);
 
-      // 2. Subir fotos (si hay)
       const validPhotos = photos.filter((p) => p.status === "pending");
       if (validPhotos.length > 0) {
         const uploaded = await uploadPhotos(person.id);
-        if (uploaded < validPhotos.length) {
-          showNotification(
-            "success",
-            `Caso reportado. ${uploaded} de ${validPhotos.length} fotos subidas. Puedes subir las restantes después.`
-          );
-        } else {
-          showNotification(
-            "success",
-            "Caso reportado exitosamente con fotos. Está en revisión."
-          );
-        }
-      } else {
-        showNotification(
-          "success",
-          "Caso reportado exitosamente. Está en revisión."
+        showNotification("success",
+          uploaded < validPhotos.length
+            ? `Caso reportado. ${uploaded}/${validPhotos.length} fotos subidas.`
+            : "Caso reportado con fotos. Está en revisión."
         );
+      } else {
+        showNotification("success", "Caso reportado exitosamente. Está en revisión.");
       }
-
-      // Redirigir después de 2 segundos
-      setTimeout(() => {
-        router.push("/dashboard/familiar");
-      }, 2000);
+      setTimeout(() => router.push("/dashboard/familiar"), 2000);
     } catch (error) {
-      let errorMessage = "Error al reportar el caso";
-      if (error instanceof Error) {
-        // Extraer detalle de axios si existe
-        const axiosErr = error as { response?: { data?: { detail?: string } } };
-        if (axiosErr.response?.data?.detail) {
-          errorMessage = axiosErr.response.data.detail;
-        }
-      }
-      showNotification("error", errorMessage);
+      const axiosErr = error as { response?: { data?: { detail?: string } } };
+      showNotification("error", axiosErr?.response?.data?.detail ?? "Error al reportar el caso");
     } finally {
       setIsLoading(false);
       setUploadStep("");
     }
   };
 
-  const handleChange = (
-    e: React.ChangeEvent<
-      HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement
-    >
-  ) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[name];
-        return next;
-      });
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-slate-50 py-8 px-4">
       {showToast && (
-        <Toast
-          type={toastType}
-          title={toastType === "success" ? "Éxito" : "Error"}
-          message={toastMessage}
-          onClose={() => setShowToast(false)}
-        />
+        <Toast type={toastType} title={toastType === "success" ? "Éxito" : "Error"}
+          message={toastMessage} onClose={() => setShowToast(false)} />
       )}
 
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Reportar Persona Desaparecida
-          </h1>
-          <p className="text-gray-600">
-            Por favor, proporciona toda la información disponible sobre la
-            persona desaparecida. Tu caso será revisado por nuestro equipo.
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-slate-900">Reportar persona desaparecida</h1>
+          <p className="mt-1 text-[13px] text-slate-500">
+            Completá los datos disponibles. Solo el nombre y la fecha son obligatorios.
           </p>
         </div>
 
-        {/* Formulario */}
-        <div className="bg-white rounded-2xl shadow-lg p-8">
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Fotos */}
-            <PhotoUpload
-              photos={photos}
-              onChange={setPhotos}
-              disabled={isLoading}
-            />
+        <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Fila 1: Nombre y Género */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Nombre Completo *
+          {/* ── SECCIÓN 1: Datos básicos ──────────────────────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
+            <h2 className="text-[13px] font-semibold text-slate-800">Datos básicos</h2>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {/* Nombre */}
+              <div className="sm:col-span-2">
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">
+                  Nombre completo <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
-                  name="full_name"
-                  value={formData.full_name}
-                  onChange={handleChange}
-                  placeholder="Juan Pérez García"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.full_name
-                      ? "border-red-500 bg-red-50 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-blue-500"
-                  }`}
-                />
-                {errors.full_name && (
-                  <p className="mt-1 text-xs text-red-600 font-medium">
-                    {errors.full_name}
-                  </p>
-                )}
+                <input type="text" name="full_name" value={formData.full_name}
+                  onChange={handleChange} placeholder="Juan Pérez García"
+                  className={`w-full rounded-lg border px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.full_name ? "border-red-400 bg-red-50" : "border-slate-300"}`} />
+                {errors.full_name && <p className="mt-1 text-[11px] text-red-600">{errors.full_name}</p>}
               </div>
 
+              {/* Género */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Género *
-                </label>
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="not_specified">No especificado</option>
-                  <option value="M">Masculino</option>
-                  <option value="F">Femenino</option>
-                  <option value="O">Otros</option>
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">Género</label>
+                <select name="gender" value={formData.gender} onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  {GENDER_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
                 </select>
               </div>
-            </div>
 
-            {/* Fila 2: Fechas de nacimiento y desaparición */}
-            <div className="grid grid-cols-2 gap-6">
+              {/* Fecha de nacimiento */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha de Nacimiento *
-                </label>
-                <input
-                  type="date"
-                  name="date_of_birth"
-                  value={formData.date_of_birth}
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">Fecha de nacimiento</label>
+                <input type="date" name="date_of_birth" value={formData.date_of_birth}
                   onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.date_of_birth
-                      ? "border-red-500 bg-red-50 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-blue-500"
-                  }`}
-                />
-                {errors.date_of_birth && (
-                  <p className="mt-1 text-xs text-red-600 font-medium">
-                    {errors.date_of_birth}
-                  </p>
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              {/* Fecha desaparición */}
+              <div>
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">
+                  Fecha de desaparición <span className="text-red-500">*</span>
+                </label>
+                <input type="date" name="disappeared_at" value={formData.disappeared_at}
+                  onChange={handleChange}
+                  className={`w-full rounded-lg border px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.disappeared_at ? "border-red-400 bg-red-50" : "border-slate-300"}`} />
+                {errors.disappeared_at && <p className="mt-1 text-[11px] text-red-600">{errors.disappeared_at}</p>}
+              </div>
+
+              {/* Última hora vista */}
+              <div>
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">Última hora vista</label>
+                <input type="datetime-local" name="last_seen_at" value={formData.last_seen_at}
+                  onChange={handleChange}
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+
+              {/* Última ubicación */}
+              <div className="sm:col-span-2">
+                <label className="block text-[12px] font-medium text-slate-700 mb-1">Último lugar conocido</label>
+                <input type="text" name="last_known_location" value={formData.last_known_location}
+                  onChange={handleChange} placeholder="Ej: Parque Central, La Paz"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+            </div>
+          </div>
+
+          {/* ── SECCIÓN 2: Foto ───────────────────────────────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-[13px] font-semibold text-slate-800 mb-1">Foto</h2>
+            <p className="text-[11px] text-slate-500 mb-3">
+              Sube una foto reciente con la cara visible. Se analizará automáticamente para completar algunos campos.
+            </p>
+            <PhotoUpload photos={photos} onChange={handlePhotosChange}
+              disabled={isLoading} analyses={photoAnalyses} analyzingIndexes={analyzingIndexes} />
+          </div>
+
+          {/* ── SECCIÓN 3: Características físicas (acordeón) ────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+              onClick={() => setShowPhysical(!showPhysical)}>
+              <span className="text-[13px] font-semibold text-slate-800 flex items-center gap-2">
+                Características físicas
+                {aiAutoFilledRef.current && (
+                  <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">
+                    completado por IA
+                  </span>
                 )}
-              </div>
+              </span>
+              <svg className={`h-4 w-4 text-slate-400 transition-transform ${showPhysical ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showPhysical && (
+              <div className="px-5 pb-5 space-y-4 border-t border-slate-100">
+                <div className="grid grid-cols-2 gap-3 pt-4 sm:grid-cols-4">
+                  {/* Estatura */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Estatura (cm)</label>
+                    <input type="number" name="height_cm" value={formData.height_cm}
+                      onChange={handleChange} placeholder="170"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha de Desaparición *
+                  {/* Peso */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Peso aprox. (kg)</label>
+                    <input type="number" name="weight_kg"
+                      value={attrs.weight_kg ?? ""}
+                      onChange={(e) => setAttrs((p) => ({ ...p, weight_kg: e.target.value ? parseInt(e.target.value) : undefined }))}
+                      placeholder="70"
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+
+                  {/* Complexión */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Complexión</label>
+                    <select name="build" value={attrs.build ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {BUILD_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Tono de piel */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Tono de piel
+                      {attrs.ai_analyzed && attrs.skin_tone && (
+                        <span className="ml-1 text-[9px] text-green-600">(IA)</span>
+                      )}
+                    </label>
+                    <select name="skin_tone" value={attrs.skin_tone ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {SKIN_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Color de cabello */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                      Color de cabello
+                      {attrs.ai_analyzed && attrs.hair_color && (
+                        <span className="ml-1 text-[9px] text-green-600">(IA)</span>
+                      )}
+                    </label>
+                    <select name="hair_color" value={attrs.hair_color ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {HAIR_COLOR_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Largo de cabello */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Largo de cabello</label>
+                    <select name="hair_length" value={attrs.hair_length ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {HAIR_LENGTH_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Color de ojos */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Color de ojos</label>
+                    <select name="eye_color" value={attrs.eye_color ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {EYE_COLOR_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Vello facial */}
+                  <div>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">Vello facial</label>
+                    <select name="facial_hair" value={attrs.facial_hair ?? ""} onChange={handleAttr}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500">
+                      {FACIAL_HAIR_OPTIONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Usa lentes */}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="checkbox" name="wears_glasses"
+                    checked={attrs.wears_glasses ?? false} onChange={handleAttr}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                  <span className="text-[12px] text-slate-700">Usa lentes</span>
                 </label>
-                <input
-                  type="date"
-                  name="disappeared_at"
-                  value={formData.disappeared_at}
-                  onChange={handleChange}
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.disappeared_at
-                      ? "border-red-500 bg-red-50 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-blue-500"
-                  }`}
-                />
-                {errors.disappeared_at && (
-                  <p className="mt-1 text-xs text-red-600 font-medium">
-                    {errors.disappeared_at}
-                  </p>
-                )}
+
+                {/* Marcas distintivas */}
+                <div>
+                  <label className="block text-[11px] font-medium text-slate-600 mb-1">
+                    Marcas distintivas (cicatrices, lunares, tatuajes)
+                  </label>
+                  <textarea name="distinguishing_marks" value={attrs.distinguishing_marks ?? ""}
+                    onChange={handleAttr} rows={2}
+                    placeholder="Ej: cicatriz en mejilla derecha, tatuaje de águila en brazo izquierdo"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                </div>
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Fila 3: Última ubicación y última hora */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Última Ubicación Conocida *
-                </label>
-                <input
-                  type="text"
-                  name="last_known_location"
-                  value={formData.last_known_location}
-                  onChange={handleChange}
-                  placeholder="Ej: Parque Central, La Paz"
-                  className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                    errors.last_known_location
-                      ? "border-red-500 bg-red-50 focus:ring-red-500"
-                      : "border-gray-300 focus:ring-blue-500"
-                  }`}
-                />
-                {errors.last_known_location && (
-                  <p className="mt-1 text-xs text-red-600 font-medium">
-                    {errors.last_known_location}
-                  </p>
-                )}
+          {/* ── SECCIÓN 4: Ropa (acordeón) ───────────────────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+              onClick={() => setShowClothing(!showClothing)}>
+              <span className="text-[13px] font-semibold text-slate-800">Ropa al momento de la desaparición</span>
+              <svg className={`h-4 w-4 text-slate-400 transition-transform ${showClothing ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showClothing && (
+              <div className="px-5 pb-5 space-y-3 border-t border-slate-100 pt-4">
+                {[
+                  ["clothing_upper",       "Ropa superior",   "polera azul manga larga"],
+                  ["clothing_lower",       "Ropa inferior",   "jean negro"],
+                  ["clothing_footwear",    "Calzado",         "zapatillas blancas Nike"],
+                  ["clothing_accessories", "Accesorios",      "mochila gris, gorra negra"],
+                ].map(([name, label, placeholder]) => (
+                  <div key={name}>
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">{label}</label>
+                    <input type="text" name={name}
+                      value={(attrs as Record<string, string>)[name] ?? ""}
+                      onChange={handleAttr} placeholder={`Ej: ${placeholder}`}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  </div>
+                ))}
               </div>
+            )}
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Última Hora Vista (Opcional)
-                </label>
-                <input
-                  type="datetime-local"
-                  name="last_seen_at"
-                  value={formData.last_seen_at}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          {/* ── SECCIÓN 5: Notas adicionales (acordeón) ──────────────────── */}
+          <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+            <button type="button"
+              className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-slate-50 transition-colors"
+              onClick={() => setShowNotes(!showNotes)}>
+              <span className="text-[13px] font-semibold text-slate-800">Notas adicionales</span>
+              <svg className={`h-4 w-4 text-slate-400 transition-transform ${showNotes ? "rotate-180" : ""}`}
+                fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            {showNotes && (
+              <div className="px-5 pb-5 border-t border-slate-100 pt-4">
+                <textarea name="physical_description" value={formData.physical_description}
+                  onChange={handleChange} rows={3}
+                  placeholder="Cualquier información adicional que pueda ayudar en la búsqueda…"
+                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </div>
-            </div>
+            )}
+          </div>
 
-            {/* Fila 4: Altura y ropa */}
-            <div className="grid grid-cols-2 gap-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Altura (cm, Opcional)
-                </label>
-                <input
-                  type="number"
-                  name="height_cm"
-                  value={formData.height_cm}
-                  onChange={handleChange}
-                  placeholder="170"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
+          {/* ── Botones ───────────────────────────────────────────────────── */}
+          <div className="flex gap-3">
+            <button type="submit" disabled={isLoading}
+              className="flex-1 rounded-xl bg-blue-600 py-3 text-[13px] font-semibold text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+              {isLoading ? (uploadStep || "Enviando…") : "Reportar caso"}
+            </button>
+            <button type="button" onClick={() => router.back()} disabled={isLoading}
+              className="flex-1 rounded-xl border border-slate-300 py-3 text-[13px] font-semibold text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50">
+              Cancelar
+            </button>
+          </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Última Ropa Vista (Opcional)
-                </label>
-                <input
-                  type="text"
-                  name="last_known_clothing"
-                  value={formData.last_known_clothing}
-                  onChange={handleChange}
-                  placeholder="Ej: Camiseta azul, pantalón negro"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-
-            {/* Descripción física */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Descripción Física *
-              </label>
-              <textarea
-                name="physical_description"
-                value={formData.physical_description}
-                onChange={handleChange}
-                placeholder="Describe características físicas: color de ojos, cabello, marcas distintivas, cicatrices, tatuajes, etc."
-                rows={5}
-                className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 ${
-                  errors.physical_description
-                    ? "border-red-500 bg-red-50 focus:ring-red-500"
-                    : "border-gray-300 focus:ring-blue-500"
-                }`}
-              />
-              {errors.physical_description && (
-                <p className="mt-1 text-xs text-red-600 font-medium">
-                  {errors.physical_description}
-                </p>
-              )}
-            </div>
-
-            {/* Botones */}
-            <div className="flex gap-4 pt-6">
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-gray-400 disabled:cursor-not-allowed"
-              >
-                {isLoading ? uploadStep || "Enviando..." : "Reportar Caso"}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.back()}
-                disabled={isLoading}
-                className="flex-1 border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-            </div>
-          </form>
-        </div>
+        </form>
       </div>
     </div>
   );
