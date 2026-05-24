@@ -19,6 +19,7 @@ from app.routers import (
     field_reports as field_reports_router,
     missions as missions_router,
     persons as persons_router,
+    photo_analysis as photo_analysis_router,
     photos as photos_router,
     public as public_router,
     push as push_router,
@@ -88,6 +89,7 @@ app.include_router(alerts_router.router)
 app.include_router(system_router.router)
 app.include_router(telemetry_router.router)
 app.include_router(photos_router.router)
+app.include_router(photo_analysis_router.router)
 app.include_router(admin_import_router.router)
 app.include_router(audit_log_router.router)
 app.include_router(field_reports_router.router)
