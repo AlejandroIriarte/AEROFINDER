@@ -5,6 +5,7 @@
 # =============================================================================
 
 import logging
+import threading
 from typing import Optional
 
 import cv2
@@ -29,11 +30,14 @@ class FaceAnalyzer:
     """
 
     _instance: Optional["FaceAnalyzer"] = None
+    _lock: threading.Lock = threading.Lock()
 
     @classmethod
     def get(cls) -> "FaceAnalyzer":
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def __init__(self) -> None:
@@ -43,6 +47,10 @@ class FaceAnalyzer:
         self._profile_cascade = cv2.CascadeClassifier(
             cv2.data.haarcascades + "haarcascade_profileface.xml"
         )
+        if self._frontal_cascade.empty():
+            raise RuntimeError("No se pudo cargar haarcascade_frontalface_default.xml")
+        if self._profile_cascade.empty():
+            raise RuntimeError("No se pudo cargar haarcascade_profileface.xml")
         logger.info("FaceAnalyzer inicializado con Haar Cascades")
 
     def analyze(self, image_bytes: bytes) -> dict:
@@ -119,7 +127,7 @@ class FaceAnalyzer:
             )
 
             attributes: dict = {}
-            if face_detected and len(faces) > 0:
+            if face_detected:
                 x, y, w, h = max(faces, key=lambda f: int(f[2]) * int(f[3]))
                 face_roi = img_bgr[int(y):int(y + h), int(x):int(x + w)]
 
