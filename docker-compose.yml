@@ -208,7 +208,7 @@ services:
   # ── AI Worker (YOLO + InsightFace) — requiere GPU NVIDIA ─────────────────────
   ai-worker:
     build:
-      context: ./ai_worker
+      context: ./ai-worker
       dockerfile: Dockerfile
     container_name: aerofinder_ai_worker
     restart: unless-stopped
