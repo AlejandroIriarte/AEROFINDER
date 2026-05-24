@@ -4,6 +4,7 @@
 # Stateless: no guarda nada en DB, solo procesa en memoria.
 # =============================================================================
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
@@ -71,10 +72,11 @@ async def analyze_photo(
             detail="Imagen demasiado grande. Máximo 10 MB.",
         )
 
-    # Analizar
+    # Analizar en thread pool — OpenCV es sync y bloquea el event loop si se llama directo
     try:
         analyzer = FaceAnalyzer.get()
-        result = analyzer.analyze(image_bytes)
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, analyzer.analyze, image_bytes)
     except Exception:
         logger.error("Error en FaceAnalyzer", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al analizar la imagen")
