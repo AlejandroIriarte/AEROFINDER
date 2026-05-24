@@ -1,10 +1,38 @@
-import type { Metadata } from "next";
+"use client";
 
-export const metadata: Metadata = {
-  title: "Aerofinder — Campo",
-};
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuthStore } from "@/store/auth";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
+  const router          = useRouter();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading       = useAuthStore((s) => s.isLoading);
+  const isInitialized   = useAuthStore((s) => s.isInitialized);
+  const loadUser        = useAuthStore((s) => s.loadUser);
+
+  useEffect(() => {
+    if (!isInitialized) loadUser();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (isInitialized && !isLoading && !isAuthenticated) {
+      router.replace("/login");
+    }
+  }, [isInitialized, isLoading, isAuthenticated, router]);
+
+  if (!isInitialized || isLoading || !isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-900">
+        <div className="text-center text-slate-400">
+          <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-4 border-slate-700 border-t-blue-500" />
+          <p className="text-sm">Verificando sesión…</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header compacto */}
