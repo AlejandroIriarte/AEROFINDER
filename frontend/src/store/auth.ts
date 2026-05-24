@@ -41,7 +41,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   // ── Setter interno para que el interceptor de axios actualice el token ───────
   setAccessToken: (token: string) => {
     if (typeof window !== "undefined") {
-      localStorage.setItem(TOKEN_KEY, token);
+      try {
+        localStorage.setItem(TOKEN_KEY, token);
+      } catch {
+        // Safari privado o storage bloqueado — el token vive solo en memoria
+      }
     }
     set({ accessToken: token, isAuthenticated: true });
   },
@@ -159,7 +163,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (!accessToken) {
       const refreshed = await doRefresh();
       if (!refreshed) {
-        set({ isInitialized: true });
+        set({ isInitialized: true, isLoading: false });
         return;
       }
       accessToken = get().accessToken;
