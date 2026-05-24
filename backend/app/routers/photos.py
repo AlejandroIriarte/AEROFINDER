@@ -181,6 +181,7 @@ async def request_photo_upload_url(
                 expires_seconds=_PHOTO_PRESIGN_EXPIRES,
             ),
         )
+        upload_url = _rewrite_minio_host(upload_url)
     except Exception:
         logger.error("Error al generar presigned PUT URL para persona_id=%s", person_id, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al generar URL de subida")
