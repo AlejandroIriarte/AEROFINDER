@@ -180,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         } catch {
           // refresh token también inválido — caer a limpieza total
+          console.warn("[auth] loadUser: /me falló tras refresh — limpiando sesión");
         }
       }
 
