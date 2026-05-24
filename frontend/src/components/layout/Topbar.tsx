@@ -5,8 +5,10 @@
 
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { RoleName } from "@/lib/types";
 import { NotificationBell } from "@/components/notifications/NotificationBell";
+import { useAuthStore } from "@/store/auth";
 
 interface TopbarProps {
   breadcrumb: string;
@@ -54,8 +56,21 @@ export function Topbar({
   userName,
   onToggleSidebar,
 }: TopbarProps) {
-  const roleStyle = ROLE_STYLES[role];
-  const initials = getInitials(userName);
+  const roleStyle  = ROLE_STYLES[role];
+  const initials   = getInitials(userName);
+  const logout     = useAuthStore((s) => s.logout);
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Cerrar al hacer click fuera
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   return (
     <div className="flex h-[52px] items-center border-b border-slate-200 bg-white px-4 gap-4">
@@ -102,13 +117,36 @@ export function Topbar({
       {/* NotificationBell — only if role !== "familiar" */}
       {role !== "familiar" && <NotificationBell />}
 
-      {/* Avatar */}
-      <div
-        className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-xs font-semibold flex-shrink-0"
-        aria-label={userName}
-        title={userName}
-      >
-        {initials || "U"}
+      {/* Avatar con dropdown */}
+      <div ref={ref} className="relative flex-shrink-0">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-xs font-semibold hover:bg-blue-700 transition-colors"
+          aria-label={userName}
+          title={userName}
+        >
+          {initials || "U"}
+        </button>
+
+        {open && (
+          <div className="absolute right-0 top-10 z-50 w-48 rounded-xl border border-slate-200 bg-white shadow-lg py-1">
+            <div className="px-3 py-2 border-b border-slate-100">
+              <p className="text-[12px] font-semibold text-slate-800 truncate">{userName}</p>
+              <p className={`text-[11px] font-medium ${roleStyle.text}`}>{roleStyle.label}</p>
+            </div>
+            <button
+              onClick={() => { setOpen(false); logout(); }}
+              className="flex w-full items-center gap-2 px-3 py-2 text-[13px] text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8}>
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+              Cerrar sesión
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
