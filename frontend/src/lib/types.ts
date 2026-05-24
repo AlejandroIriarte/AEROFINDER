@@ -81,6 +81,44 @@ export interface MissingPerson {
   found_at: string | null;
   created_at: string;
   updated_at: string;
+  physical_attributes: PhysicalAttributes | null;
+}
+
+// ── Atributos físicos estructurados ──────────────────────────────────────────
+
+export interface PhysicalAttributes {
+  weight_kg?: number;
+  build?: string;              // delgado/normal/robusto/corpulento
+  skin_tone?: string;          // muy_claro/claro/medio/moreno/oscuro
+  hair_color?: string;         // negro/castaño/rubio/pelirrojo/canoso/blanco/calvo
+  hair_length?: string;        // calvo/muy_corto/corto/mediano/largo
+  eye_color?: string;          // negros/marrones/verdes/azules/grises/miel
+  wears_glasses?: boolean;
+  facial_hair?: string;        // ninguno/barba/bigote/barba_y_bigote/incipiente
+  distinguishing_marks?: string;
+  clothing_upper?: string;
+  clothing_lower?: string;
+  clothing_footwear?: string;
+  clothing_accessories?: string;
+  ai_analyzed?: boolean;
+  ai_confidence?: number;
+}
+
+// ── Resultado análisis de foto ────────────────────────────────────────────────
+
+export interface PhotoAnalysisResult {
+  quality: {
+    is_useful: boolean;
+    face_detected: boolean;
+    face_angle: string;
+    blur_score: number;
+    issues: string[];
+    issue_labels: string[];
+  };
+  attributes: {
+    skin_tone?: string;
+    hair_color?: string;
+  };
 }
 
 export interface Drone {
@@ -313,9 +351,9 @@ export interface PersonReportCreate {
   gender?: string;
   physical_description?: string;
   height_cm?: number;
-  last_known_clothing?: string;
   last_known_location?: string;
   last_seen_at?: string;
+  physical_attributes?: PhysicalAttributes;
 }
 
 // ── Drones de misión ──────────────────────────────────────────��──────────────

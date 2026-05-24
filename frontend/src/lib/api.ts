@@ -21,6 +21,7 @@ import type {
   LoginResponse,
   MissingPersonStatus,
   MissionDrone,
+  PhotoAnalysisResult,
   PhotoFaceAngle,
   PhotoResponse,
   PhotoUploadUrlResponse,
@@ -334,6 +335,17 @@ export const photosApi = {
     const { data } = await api.patch<PhotoResponse>(
       `/persons/${personId}/photos/${photoId}`,
       { is_active }
+    );
+    return data;
+  },
+
+  async analyzePhoto(file: File): Promise<PhotoAnalysisResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post<PhotoAnalysisResult>(
+      "/photos/analyze",
+      formData,
+      { headers: { "Content-Type": "multipart/form-data" } }
     );
     return data;
   },
