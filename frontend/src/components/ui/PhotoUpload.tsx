@@ -7,6 +7,19 @@ import type { PhotoAnalysisResult } from "@/lib/types";
 const ACCEPTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_SIZE_BYTES = 5 * 1024 * 1024; // 5 MB
 const MAX_PHOTOS = 3;
+const MIN_WIDTH  = 200;   // px mínimos de ancho
+const MIN_HEIGHT = 200;   // px mínimos de alto
+
+/** Retorna dimensiones de imagen via Promise */
+function getImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.onload  = () => { URL.revokeObjectURL(url); resolve({ width: img.naturalWidth, height: img.naturalHeight }); };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("No se pudo leer la imagen")); };
+    img.src = url;
+  });
+}
 
 export interface SelectedPhoto {
   file: File;
@@ -36,7 +49,7 @@ export function PhotoUpload({
   const [dragOver, setDragOver] = useState(false);
 
   const addFiles = useCallback(
-    (files: FileList | File[]) => {
+    async (files: FileList | File[]) => {
       const fileArray = Array.from(files);
       const remaining = maxPhotos - photos.length;
       if (remaining <= 0) return;
@@ -62,6 +75,27 @@ export function PhotoUpload({
           });
           continue;
         }
+        // Check resolución mínima
+        try {
+          const { width, height } = await getImageDimensions(file);
+          if (width < MIN_WIDTH || height < MIN_HEIGHT) {
+            newPhotos.push({
+              file,
+              preview: "",
+              status: "error",
+              errorMessage: `Foto muy pequeña (${width}×${height}px). Mínimo ${MIN_WIDTH}×${MIN_HEIGHT}px.`,
+            });
+            continue;
+          }
+        } catch {
+          newPhotos.push({
+            file,
+            preview: "",
+            status: "error",
+            errorMessage: "No se pudo leer la imagen.",
+          });
+          continue;
+        }
         newPhotos.push({
           file,
           preview: URL.createObjectURL(file),
@@ -76,18 +110,15 @@ export function PhotoUpload({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      addFiles(e.target.files);
+      void addFiles(e.target.files);
     }
-    // Limpiar input para permitir seleccionar el mismo archivo
-    if (fileInputRef.current) fileInputRef.current.value = "";
+    e.target.value = "";
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    if (!disabled && e.dataTransfer.files.length > 0) {
-      addFiles(e.dataTransfer.files);
-    }
+    if (!disabled) void addFiles(e.dataTransfer.files);
   };
 
   const handleDragOver = (e: React.DragEvent) => {
