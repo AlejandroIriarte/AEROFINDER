@@ -24,6 +24,7 @@ from app.models.enums import MissingPersonStatus, RelativeRelation, RoleName
 from app.models.persons import MissingPerson, PersonRelative
 from app.schemas.persons import (
     PersonCreate,
+    PersonFamiliarUpdate,
     PersonResponse,
     PersonStatusUpdate,
     PersonReportCreate,
@@ -216,6 +217,52 @@ async def update_person(
 
     if person is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
+
+    update_fields = body.model_dump(exclude_none=True)
+    for field, value in update_fields.items():
+        setattr(person, field, value)
+
+    return PersonResponse.model_validate(person)
+
+
+@router.patch("/{person_id}/my-report", response_model=PersonResponse)
+async def familiar_update_person(
+    person_id: uuid.UUID,
+    body: PersonFamiliarUpdate,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> PersonResponse:
+    """Familiar actualiza datos básicos de su propia persona reportada. No puede cambiar status."""
+    if current_user.role != RoleName.familiar:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo familiares pueden usar este endpoint")
+
+    try:
+        result = await db.execute(
+            select(MissingPerson).where(MissingPerson.id == person_id)
+        )
+        person: MissingPerson | None = result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al buscar persona id=%s", person_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if person is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
+
+    # Verificar que el familiar está vinculado a la persona (RLS lo maneja, pero chequeamos igual)
+    try:
+        rel_result = await db.execute(
+            select(PersonRelative).where(
+                PersonRelative.missing_person_id == person_id,
+                PersonRelative.user_id == current_user.id,
+            )
+        )
+        relative = rel_result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al buscar relativo persona_id=%s user_id=%s", person_id, current_user.id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if relative is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="No tienes acceso a este reporte")
 
     update_fields = body.model_dump(exclude_none=True)
     for field, value in update_fields.items():

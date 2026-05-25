@@ -293,6 +293,11 @@ export const personsApi = {
     const { data } = await api.patch<MissingPerson>(`/persons/${id}/status`, { status });
     return data;
   },
+
+  async updateMyReport(id: string, payload: Record<string, unknown>): Promise<MissingPerson> {
+    const { data } = await api.patch<MissingPerson>(`/persons/${id}/my-report`, payload);
+    return data;
+  },
 };
 
 // ── API de fotos (presigned URL flow) ────────────────────────────────────────
