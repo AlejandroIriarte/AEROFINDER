@@ -419,6 +419,26 @@ export default function PersonDetailPage() {
   const showDetections = role === "admin" || role === "buscador" || role === "ayudante";
   const showMissions   = role === "admin" || role === "buscador";
 
+  // Estado de edición inline (solo familiar)
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData]   = useState<Record<string, unknown>>({});
+  const [isSaving, setIsSaving]   = useState(false);
+
+  const handleEditSave = async () => {
+    if (!person) return;
+    setIsSaving(true);
+    try {
+      const updated = await personsApi.updateMyReport(person.id, editData);
+      setPerson(updated);
+      setIsEditing(false);
+      setEditData({});
+    } catch (err) {
+      console.error("Error al guardar:", err);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const loadPhotos = useCallback(async () => {
     try {
       const data = await photosApi.list(id);
@@ -558,8 +578,85 @@ export default function PersonDetailPage() {
       {/* ── Contenido principal ── */}
       <div className="space-y-6">
 
-        {/* Info básica: todos los roles */}
-        <InfoSection person={person} />
+        {/* Info básica: admin/buscador/ayudante usan InfoSection de solo lectura */}
+        {role !== "familiar" && <InfoSection person={person} />}
+
+        {/* Info básica editable para familiar */}
+        {role === "familiar" && (
+          <div className="rounded-xl border border-gray-200 bg-white p-6 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-gray-500">Datos del caso</h2>
+              {!isEditing ? (
+                <button
+                  onClick={() => { setIsEditing(true); setEditData({}); }}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Editar
+                </button>
+              ) : (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => { setIsEditing(false); setEditData({}); }}
+                    className="rounded-lg border border-slate-200 px-3 py-1.5 text-[12px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleEditSave}
+                    disabled={isSaving}
+                    className="rounded-lg bg-blue-600 px-3 py-1.5 text-[12px] font-semibold text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {isSaving ? "Guardando…" : "Guardar"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {!isEditing ? (
+              <dl className="space-y-3">
+                {([
+                  ["Nombre completo", person.full_name],
+                  ["Fecha desaparición", person.disappeared_at ? new Date(person.disappeared_at).toLocaleDateString("es") : "—"],
+                  ["Última vez visto", person.last_seen_at ? new Date(person.last_seen_at).toLocaleDateString("es") : "—"],
+                  ["Edad al desaparecer", person.age_at_disappearance ? `${person.age_at_disappearance} años` : "—"],
+                  ["Género", person.gender ?? "—"],
+                  ["Última ubicación", person.last_known_location ?? "—"],
+                  ["Descripción física", person.physical_description ?? "—"],
+                  ["Contacto de reporte", person.reporter_contact ?? "—"],
+                ] as [string, string][]).map(([label, value]) => (
+                  <div key={label} className="flex flex-col sm:flex-row sm:gap-4 text-sm">
+                    <dt className="text-xs font-medium text-gray-400 sm:w-40 sm:shrink-0">{label}</dt>
+                    <dd className="text-gray-900">{value ?? "—"}</dd>
+                  </div>
+                ))}
+              </dl>
+            ) : (
+              <div className="space-y-3">
+                {[
+                  { key: "full_name",              label: "Nombre completo",      type: "text",   value: String(editData.full_name              ?? person.full_name              ?? "") },
+                  { key: "age_at_disappearance",   label: "Edad al desaparecer",  type: "number", value: String(editData.age_at_disappearance   ?? person.age_at_disappearance   ?? "") },
+                  { key: "gender",                 label: "Género",               type: "text",   value: String(editData.gender                 ?? person.gender                 ?? "") },
+                  { key: "last_known_location",    label: "Última ubicación",     type: "text",   value: String(editData.last_known_location    ?? person.last_known_location    ?? "") },
+                  { key: "physical_description",   label: "Descripción física",   type: "text",   value: String(editData.physical_description   ?? person.physical_description   ?? "") },
+                  { key: "reporter_contact",       label: "Contacto de reporte",  type: "text",   value: String(editData.reporter_contact       ?? person.reporter_contact       ?? "") },
+                ].map(({ key, label, type, value }) => (
+                  <div key={key}>
+                    <label className="mb-1 block text-[11px] font-medium text-slate-600">{label}</label>
+                    <input
+                      type={type}
+                      value={value}
+                      onChange={(e) => setEditData((prev) => ({
+                        ...prev,
+                        [key]: type === "number" ? (Number(e.target.value) || undefined) : (e.target.value || undefined),
+                      }))}
+                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-[13px] focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Fotos: todos los roles (diferente capacidad de acción) */}
         <PhotosSection

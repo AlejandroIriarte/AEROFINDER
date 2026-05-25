@@ -126,6 +126,22 @@ class RelativeResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class PersonFamiliarUpdate(BaseModel):
+    """Campos que el familiar puede actualizar de su propio reporte."""
+    full_name: Optional[str] = None
+    age_at_disappearance: Optional[int] = None
+    gender: Optional[str] = None
+    physical_description: Optional[str] = None
+    height_cm: Optional[int] = None
+    last_known_clothing: Optional[str] = None
+    physical_attributes: Optional[PhysicalAttributes] = None
+    last_known_location: Optional[str] = None
+    last_seen_at: Optional[datetime] = None
+    disappeared_at: Optional[date] = None
+    reporter_name: Optional[str] = None
+    reporter_contact: Optional[str] = None
+
+
 class PersonStatusUpdate(BaseModel):
     status: MissingPersonStatus
 
