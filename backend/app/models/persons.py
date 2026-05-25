@@ -85,6 +85,11 @@ class MissingPerson(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Text, nullable=False, server_default=text("'manual'")
     )
 
+    # Timestamp de solicitud de fotos adicionales por parte del staff
+    photos_requested_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
 
 class PersonPhoto(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     """

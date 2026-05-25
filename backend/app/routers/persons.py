@@ -481,3 +481,91 @@ async def update_person_status(
     )
 
     return PersonResponse.model_validate(person)
+
+
+# ── Solicitud de fotos adicionales ───────────────────────────────────────────
+
+@router.post("/{person_id}/request-photos", status_code=status.HTTP_204_NO_CONTENT)
+async def request_more_photos(
+    person_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> None:
+    """Admin, buscador o ayudante solicita más fotos al familiar. Envía Web Push a las suscripciones activas."""
+    # Solo roles staff pueden solicitar fotos
+    if current_user.role not in (RoleName.admin, RoleName.buscador, RoleName.ayudante):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acceso denegado")
+
+    try:
+        result = await db.execute(
+            select(MissingPerson).where(MissingPerson.id == person_id)
+        )
+        person: MissingPerson | None = result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al buscar persona id=%s", person_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if person is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Persona no encontrada")
+
+    # Marcar timestamp de solicitud
+    from datetime import datetime, timezone
+    person.photos_requested_at = datetime.now(timezone.utc)
+
+    # Buscar familiares vinculados
+    try:
+        rel_result = await db.execute(
+            select(PersonRelative).where(PersonRelative.missing_person_id == person_id)
+        )
+        relatives = rel_result.scalars().all()
+    except Exception:
+        logger.error("Error al buscar familiares persona_id=%s", person_id, exc_info=True)
+        relatives = []
+
+    if not relatives:
+        logger.info("Sin familiares vinculados a persona_id=%s — solo se marcó timestamp", person_id)
+        return
+
+    # Obtener suscripciones Web Push de los familiares y enviar notificación
+    from app.models.field_reports import PushSubscription
+    from app.services.detection_consumer import _send_web_push
+
+    relative_user_ids = [r.user_id for r in relatives]
+
+    try:
+        subs_result = await db.execute(
+            select(PushSubscription).where(PushSubscription.user_id.in_(relative_user_ids))
+        )
+        subscriptions = subs_result.scalars().all()
+    except Exception:
+        logger.error(
+            "Error al buscar push subscriptions para familiares de persona_id=%s",
+            person_id, exc_info=True,
+        )
+        subscriptions = []
+
+    push_payload = {
+        "type": "photos_requested",
+        "title": "Fotos adicionales solicitadas",
+        "body": f"El equipo de búsqueda solicita más fotos de {person.full_name}.",
+        "url": f"/dashboard/persons/{person_id}",
+    }
+
+    for sub in subscriptions:
+        try:
+            await _send_web_push(
+                endpoint=sub.endpoint,
+                p256dh=sub.p256dh,
+                auth_key=sub.auth_key,
+                payload=push_payload,
+            )
+        except Exception:
+            logger.warning(
+                "No se pudo enviar Web Push a user_id=%s endpoint=%s...",
+                sub.user_id, sub.endpoint[:30], exc_info=True,
+            )
+
+    logger.info(
+        "Solicitud de fotos enviada: persona_id=%s familiares=%d suscripciones=%d",
+        person_id, len(relatives), len(subscriptions),
+    )

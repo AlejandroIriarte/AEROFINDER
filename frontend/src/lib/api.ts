@@ -298,6 +298,10 @@ export const personsApi = {
     const { data } = await api.patch<MissingPerson>(`/persons/${id}/my-report`, payload);
     return data;
   },
+
+  async requestMorePhotos(id: string): Promise<void> {
+    await api.post(`/persons/${id}/request-photos`);
+  },
 };
 
 // ── API de fotos (presigned URL flow) ────────────────────────────────────────

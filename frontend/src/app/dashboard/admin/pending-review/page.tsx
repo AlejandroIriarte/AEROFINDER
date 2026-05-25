@@ -72,6 +72,21 @@ export default function PendingReviewPage() {
     }
   };
 
+  // Solicitar fotos adicionales al familiar
+  const handleRequestPhotos = async (personId: string) => {
+    try {
+      await personsApi.requestMorePhotos(personId);
+      setToastMessage("Solicitud de fotos enviada al familiar");
+      setToastType("success");
+      setShowToast(true);
+    } catch (error) {
+      console.error("Error al solicitar fotos:", error);
+      setToastMessage("Error al enviar la solicitud de fotos");
+      setToastType("error");
+      setShowToast(true);
+    }
+  };
+
   // Rechazar caso
   const handleRejectConfirm = async () => {
     if (!rejectingId) return;
@@ -198,6 +213,12 @@ export default function PendingReviewPage() {
                           className="rounded-lg bg-red-100 px-2.5 py-1 text-[10px] font-semibold text-red-700 hover:bg-red-200 transition-colors"
                         >
                           ✗ Rechazar
+                        </button>
+                        <button
+                          onClick={() => handleRequestPhotos(person.id)}
+                          className="rounded-lg bg-blue-100 px-2.5 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-200 transition-colors whitespace-nowrap"
+                        >
+                          Solicitar fotos
                         </button>
                         <Link
                           href={`/dashboard/persons/${person.id}`}

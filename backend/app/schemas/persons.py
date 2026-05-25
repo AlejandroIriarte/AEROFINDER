@@ -90,6 +90,7 @@ class PersonResponse(BaseModel):
     found_by_user_id: Optional[uuid.UUID]
     found_in_mission_id: Optional[uuid.UUID]
     closure_notes: Optional[str]
+    photos_requested_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 
