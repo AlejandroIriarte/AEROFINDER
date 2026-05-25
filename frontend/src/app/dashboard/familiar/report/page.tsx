@@ -337,6 +337,26 @@ export default function FamiliarReportPage() {
             </p>
             <PhotoUpload photos={photos} onChange={handlePhotosChange}
               disabled={isLoading} analyses={photoAnalyses} analyzingIndexes={analyzingIndexes} />
+
+            {/* Advertencia: fotos analizadas pero ninguna con cara detectada */}
+            {photos.length > 0 &&
+              analyzingIndexes.length === 0 &&
+              photoAnalyses.some((a) => a !== null) &&
+              !photoAnalyses.some((a) => a?.quality.is_useful) && (
+              <div className="mt-3 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                <svg className="h-5 w-5 shrink-0 text-amber-500 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-amber-800">
+                    No se detectó ningún rostro en las fotos
+                  </p>
+                  <p className="mt-0.5 text-[11px] text-amber-700 leading-relaxed">
+                    Las fotos subidas no son útiles para el reconocimiento por IA (foto borrosa, oscura, muy pequeña, o sin cara visible). Podés enviar el reporte igual, pero te recomendamos agregar una foto clara de la cara de la persona para mejorar las chances de identificación.
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* ── SECCIÓN 3: Características físicas (acordeón) ────────────── */}
