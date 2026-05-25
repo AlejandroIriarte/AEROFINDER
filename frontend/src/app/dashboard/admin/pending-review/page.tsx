@@ -165,7 +165,8 @@ export default function PendingReviewPage() {
       {!isLoading && cases.length > 0 && (
         <>
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full text-[12px]">
+            <div className="overflow-x-auto">
+            <table className="min-w-[640px] w-full text-[12px]">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="px-4 py-2.5 text-left text-[10px] font-medium uppercase tracking-wide text-slate-500">Nombre</th>
@@ -232,6 +233,7 @@ export default function PendingReviewPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
 
           <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4">
