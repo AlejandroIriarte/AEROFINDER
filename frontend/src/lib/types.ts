@@ -82,6 +82,7 @@ export interface MissingPerson {
   created_at: string;
   updated_at: string;
   physical_attributes: PhysicalAttributes | null;
+  photos_requested_at?: string | null;
 }
 
 // ── Atributos físicos estructurados ──────────────────────────────────────────
