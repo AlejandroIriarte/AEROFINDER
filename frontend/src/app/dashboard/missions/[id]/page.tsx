@@ -399,7 +399,7 @@ export default function MissionDetailPage() {
                             </code>
                             <button
                               onClick={() => handleCopyRtmp(serial)}
-                              title="Copiar URL para app DJI"
+                              title="Copiar URL RTMP para el dron"
                               className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold transition-colors ${
                                 copied
                                   ? "bg-green-100 text-green-700"

@@ -1,6 +1,6 @@
 ###############################################################################
 # MediaMTX — AEROFINDER
-# RTMP :1935 (entrada DJI)  |  RTSP :8554  |  HLS :8888  |  API :9997
+# RTMP :1935 (entrada RTMP - drones)  |  RTSP :8554  |  HLS :8888  |  API :9997
 ###############################################################################
 
 logLevel: info
@@ -10,7 +10,7 @@ logDestinations: [stdout]
 api: yes
 apiAddress: :9997
 
-# RTMP — drones DJI conectan aquí
+# RTMP — drones conectan aquí (entrada RTMP desde drones DJI u otras marcas)
 rtmp: yes
 rtmpAddress: :1935
 

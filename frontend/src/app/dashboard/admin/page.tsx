@@ -58,7 +58,7 @@ function NetworkInfoSection({ info }: { info: NetworkInfo }) {
       hint: "Actualizar con: ./aerofinder.sh ip <nueva_ip>",
     },
     {
-      label: "RTMP — DJI Go/Fly",
+      label: "RTMP — URL para el dron",
       value: info.rtmp_url_template.replace("{serial}", "SERIAL_DRON"),
       key: "rtmp",
       hint: "Reemplazar SERIAL_DRON por el número de serie del dron registrado",

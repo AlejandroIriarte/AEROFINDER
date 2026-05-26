@@ -217,8 +217,8 @@ export default function DronesPage() {
           {streams.length === 0 ? (
             <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-6 py-8 text-center">
               <p className="text-[13px] font-medium text-slate-500">Sin streams detectados</p>
-              <p className="mt-1 text-[11px] text-slate-400">
-                Cuando un dron DJI transmita a <span className="font-mono">rtmp://SERVER_IP:1935/SERIAL</span> aparecerá aquí.
+                <p className="mt-1 text-[11px] text-slate-400">
+                Cuando un dron (DJI u otra marca con RTMP) transmita a <span className="font-mono">rtmp://SERVER_IP:1935/SERIAL</span> aparecerá aquí.
               </p>
             </div>
           ) : (
@@ -373,7 +373,7 @@ export default function DronesPage() {
               value={editForm.model}
               onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
               className="w-full rounded-lg border border-slate-200 px-3 py-2 text-[13px] focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="DJI Mini 2 — Piloto Juan"
+              placeholder="Ej: Dron (DJI u otra marca con RTMP) — Piloto Juan"
             />
           </div>
           <div>

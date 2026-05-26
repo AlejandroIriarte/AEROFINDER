@@ -8,6 +8,7 @@
 import { useEffect, useState } from "react";
 import { missionsApi, detectionsApi } from "@/lib/api";
 import { useNotificationsStore } from "@/store/notifications";
+import { useAuthStore } from "@/store/auth";
 import type { SidebarBadges } from "@/components/layout/Sidebar";
 
 const isToday = (iso: string) => {
@@ -18,11 +19,15 @@ const isToday = (iso: string) => {
 
 export function useSidebarBadges(): SidebarBadges {
   const unreadCount = useNotificationsStore((s) => s.unreadCount);
+  const userRole = useAuthStore((s) => s.user?.role);
 
   const [badges, setBadges] = useState<SidebarBadges>({ missions: 0, alerts: 0, detections: 0, review: 0 });
 
   const load = async () => {
     try {
+      // familiar no tiene acceso a /detections ni /missions
+      if (userRole === "familiar") return;
+
       const [missions, detections] = await Promise.all([
         missionsApi.list(),
         detectionsApi.list({ limit: 200 }),

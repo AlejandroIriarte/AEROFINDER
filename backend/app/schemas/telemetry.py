@@ -1,7 +1,7 @@
 # =============================================================================
 # AEROFINDER Backend — Schemas Pydantic: Telemetría de drones
-# Valida el payload que llega desde la app Android DJI y define
-# el mensaje que se emite al frontend vía WebSocket.
+# Valida el payload que llega desde la app Android del piloto (p.ej. DJI Fly u otra app RTMP)
+# y define el mensaje que se emite al frontend vía WebSocket.
 # =============================================================================
 
 import uuid
@@ -13,7 +13,7 @@ from pydantic import BaseModel, field_validator
 
 class TelemetryIngest(BaseModel):
     """
-    Payload de telemetría enviado por la app Android DJI al backend.
+    Payload de telemetría enviado por la app Android del piloto (p.ej. DJI Fly u otra app RTMP) al backend.
     Tanto el WebSocket /ws/ingest/telemetry como el POST /telemetry/ingest
     aceptan este schema.
     """

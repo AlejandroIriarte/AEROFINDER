@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/Toast";
 import { PhotoUpload, type SelectedPhoto } from "@/components/ui/PhotoUpload";
 import { personsApi, photosApi } from "@/lib/api";
+import { useAuthStore } from "@/store/auth";
 import type { PersonReportCreate, PhysicalAttributes, PhotoAnalysisResult } from "@/lib/types";
 
 // ── Opciones de selectores ──────────────────────────────────────────────────
@@ -34,6 +35,14 @@ const EMPTY_ATTRS: PhysicalAttributes = {
 
 export default function FamiliarReportPage() {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+
+  // Redirigir si el rol no es familiar (admin/buscador deben usar el panel de operadores)
+  useEffect(() => {
+    if (user && user.role !== "familiar") {
+      router.replace("/dashboard/persons");
+    }
+  }, [user, router]);
 
   // ── Datos básicos ─────────────────────────────────────────────────────────
   const [formData, setFormData] = useState({
