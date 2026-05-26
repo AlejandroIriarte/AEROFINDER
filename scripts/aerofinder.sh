@@ -68,10 +68,42 @@ check_prerequisites() {
   command -v docker >/dev/null 2>&1 || err "Docker no encontrado. Instalar Docker primero."
   docker compose version >/dev/null 2>&1 || err "Docker Compose v2 no encontrado (necesita 'docker compose', no 'docker-compose')."
 
-  # GPU opcional — solo advertir si no está
+  # GPU opcional — verificación en capas
+  check_gpu
+}
+
+check_gpu() {
+  # 1. nvidia-smi disponible?
   if ! command -v nvidia-smi >/dev/null 2>&1; then
-    warn "nvidia-smi no encontrado — el ai-worker puede fallar sin GPU NVIDIA."
+    warn "nvidia-smi no encontrado — el ai-worker correrá sin GPU (solo CPU, más lento)."
+    warn "  Para instalar: https://docs.nvidia.com/cuda/cuda-installation-guide-linux/"
+    return
   fi
+
+  # 2. Driver cargado? (nvidia-smi falla si el módulo del kernel no está)
+  if ! nvidia-smi --query-gpu=name --format=csv,noheader >/dev/null 2>&1; then
+    warn "Driver NVIDIA instalado pero NO cargado en el kernel."
+    warn "  Soluciones:"
+    warn "    sudo modprobe nvidia"
+    warn "    (o reiniciar el equipo si recién instalaste el driver)"
+    return
+  fi
+
+  # 3. nvidia-container-toolkit para Docker?
+  if ! docker info 2>/dev/null | grep -q "nvidia"; then
+    warn "GPU detectada pero nvidia-container-toolkit NO está configurado en Docker."
+    warn "  Instalar:"
+    warn "    curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg"
+    warn "    curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list"
+    warn "    sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit"
+    warn "    sudo nvidia-ctk runtime configure --runtime=docker && sudo systemctl restart docker"
+    return
+  fi
+
+  # Todo OK
+  local gpu_name
+  gpu_name=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+  ok "GPU: ${gpu_name} — driver y container-toolkit OK"
 }
 
 # ── .env ──────────────────────────────────────────────────────────────────────
@@ -127,7 +159,14 @@ ENVEOF
 
 # ── Detectar IP local ─────────────────────────────────────────────────────────
 detect_local_ip() {
-  # Intenta la IP de la interfaz principal (la que tiene ruta default)
+  # Preferir IP de Tailscale (100.x.x.x) si la interfaz tailscale0 está activa
+  local ts_ip
+  ts_ip=$(ip -4 addr show tailscale0 2>/dev/null | awk '/inet /{print $2}' | cut -d/ -f1 | head -1)
+  if [ -n "$ts_ip" ]; then
+    echo "$ts_ip"
+    return
+  fi
+  # Fallback: IP de la interfaz principal (la que tiene ruta default)
   local ip
   ip=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="src") print $(i+1)}' | head -1)
   if [ -z "$ip" ]; then

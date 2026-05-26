@@ -8,7 +8,7 @@ Desarrollado como proyecto de grado — Universidad Mayor de San Simón (UMSS), 
 
 ## ¿Qué hace?
 
-Un operador lanza un dron DJI Mini 2. El dron transmite video RTMP en vivo al servidor. El AI worker analiza cada frame con YOLOv8 (detección de personas) y FaceNet (reconocimiento facial contra la base de datos de desaparecidos). Cuando hay una coincidencia, el sistema notifica en tiempo real a los familiares via WebSocket y Web Push.
+Un operador lanza un dron capaz de transmitir video RTMP en vivo al servidor. El AI worker analiza cada frame con YOLOv8 (detección de personas) y FaceNet (reconocimiento facial contra la base de datos de desaparecidos). Cuando hay una coincidencia, el sistema notifica en tiempo real a los familiares via WebSocket y Web Push.
 
 Los rescatistas en campo pueden usar la PWA desde su celular para fotografiar a una persona encontrada y recibir el resultado del análisis facial en segundos.
 
@@ -16,63 +16,139 @@ Los rescatistas en campo pueden usar la PWA desde su celular para fotografiar a 
 
 ## Stack
 
-| Capa | Tecnología |
-|------|-----------|
-| Backend | FastAPI + SQLAlchemy 2.0 async + Alembic |
-| Base de datos | PostgreSQL 16 + PostGIS + pgvector |
-| Mensajería | Redis 7 Streams |
-| Almacenamiento | MinIO (S3-compatible) |
-| Video streaming | MediaMTX (RTMP → HLS / RTSP) |
-| IA | YOLOv8n + InsightFace buffalo_l |
-| Frontend | Next.js 14 App Router + Leaflet.js + hls.js |
-| Dron | DJI Mini 2 via DJI Fly app (RTMP puro) |
-| GPS piloto | PWA `navigator.geolocation` → WebSocket |
-| Infraestructura | Docker Compose v2, Ubuntu 24.04, GPU NVIDIA |
+## Levantar el proyecto
 
----
+### Requisitos
 
-## Roles de usuario
+- Ubuntu 24.04 (recomendado) con GPU NVIDIA si va a usar aceleración
+- Docker y Docker Compose v2 (comando: `docker compose`)
+- `nvidia-container-toolkit` y drivers NVIDIA si usa GPU
 
-| Rol | Acceso |
-|-----|--------|
-| `admin` | Control total: misiones, usuarios, configuración, auditoría |
-| `buscador` | Operaciones: misiones, detecciones con GPS, video en vivo |
-| `ayudante` | Revisión de casos y detecciones (sin GPS) |
-| `familiar` | Sus casos, notificaciones y PWA de reporte |
+### Flujo recomendado — Primera vez (arranque completo)
 
----
-
-## Arquitectura
+1. Clonar e inicializar `.env`:
 
 ```
-DJI Mini 2 ──RTMP──▶ MediaMTX ──RTSP──▶ AI Worker (YOLO + FaceNet)
-                         │                       │
-                    HLS (8888)           Redis Stream detecciones
-                         │                       │
-                    Frontend             Backend FastAPI
-                    hls.js               WebSocket broadcast
-                                                 │
-                    GPS piloto ──────────▶ Redis HSET last_gps
-                    (PWA watchPosition)          │
-                                         AI Worker lee coords
-                                         al momento de la detección
+Dron (RTMP) ──RTMP──▶ MediaMTX ──RTSP──▶ AI Worker (YOLO + FaceNet)
+					│                       │
+				HLS (8888)           Redis Stream detecciones
+					│                       │
+				Frontend             Backend FastAPI
+				hls.js               WebSocket broadcast
+									    │
+				GPS piloto ──────────▶ Redis HSET last_gps
+				(PWA watchPosition)          │
+								 AI Worker lee coords
+								 al momento de la detección
+```
+El script hace comprobaciones (prerequisitos, .env), crea/actualiza .env si falta, sincroniza contraseñas de DB, aplica migraciones, inicializa MinIO y espera a que el backend quede healthy. Al terminar imprime URLs útiles (panel, API, HLS, RTMP).
+
+### Comandos de uso diario / reinicios
+
+- Levantar sin reconstruir (arranque rápido o reinicio de sistema):
+
+```bash
+./scripts/aerofinder.sh start
 ```
 
-### Flujo de una detección
+- Apagar (y opcionalmente borrar volúmenes de datos):
 
-1. Dron transmite RTMP → MediaMTX convierte a RTSP
-2. AI Worker lee RTSP con OpenCV, corre YOLOv8n frame a frame
-3. Si detecta persona con confianza ≥ umbral: corre FaceNet contra embeddings en pgvector
-4. Publica resultado en Redis Stream `aerofinder:detections`
-5. Backend consume el stream, inserta en BD, genera alerta, broadcast WebSocket
-6. Familiar recibe notificación push (Web Push VAPID)
+```bash
+./scripts/aerofinder.sh stop        # apaga y conserva datos
+./scripts/aerofinder.sh stop --volumes  # apaga y elimina volúmenes (datos)
+```
 
-### Flujo field report (rescatista)
+- Reiniciar servicios (todo o por nombre):
 
-1. Rescatista abre PWA `/app/mission`, toca "Reportar encontrado"
-2. Captura 3–5 fotos desde la cámara del celular
-3. Fotos suben directamente a MinIO via presigned URL
-4. Backend dispara análisis FaceNet en AI Worker (vía Redis)
+```bash
+./scripts/aerofinder.sh restart           # reinicia todos
+./scripts/aerofinder.sh restart backend ai-worker  # reinicia servicios concretos
+```
+
+- Ver estado y salud: `./scripts/aerofinder.sh status`
+- Ver logs (tail): `./scripts/aerofinder.sh logs -f` (por defecto muestra backend + ai-worker)
+- Actualizar IP pública (reconstruye frontend/backend y actualiza DB):
+
+```bash
+./scripts/aerofinder.sh ip 192.168.1.50
+```
+
+### Comandos alternativos / debugging (sin script)
+
+- Levantar solo con Docker Compose (útil para debugging):
+
+```bash
+docker compose build --parallel
+docker compose up -d
+docker compose logs -f backend
+```
+
+- Forzar migraciones manualmente (si algo falla):
+
+```bash
+docker compose exec -T backend alembic upgrade head
+```
+
+- Inicializar MinIO manualmente (si es necesario):
+
+```bash
+docker compose run --rm minio-init
+```
+
+### Desarrollo local sin Docker
+
+- Backend (desarrollo):
+
+```bash
+cd backend
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+- Frontend (desarrollo):
+
+```bash
+cd frontend
+npm ci
+npm run dev  # http://localhost:3000
+```
+
+- AI Worker (desarrollo):
+
+```bash
+cd ai-worker
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python main.py
+```
+
+### Variables de entorno clave
+
+Copiar `.env.example` a `.env` y completar las variables sensibles antes del primer arranque:
+
+```env
+# PostgreSQL
+POSTGRES_PASSWORD=<contraseña segura>
+POSTGRES_APP_PASSWORD=<contraseña app>
+
+# JWT
+SECRET_KEY=<mínimo 32 caracteres aleatorios>
+# Generar: python -c "import secrets; print(secrets.token_hex(32))"
+
+# MinIO
+MINIO_ROOT_PASSWORD=<contraseña segura>
+MINIO_SECRET_KEY=<clave secreta app>
+
+# IP del servidor (para URLs de streaming)
+SERVER_HOST=192.168.1.X
+```
+
+### Credenciales por defecto (desarrollo)
+
+Admin: `admin@aerofinder.local` / `AeroAdmin2024!`
+
 5. PWA hace polling hasta que el resultado esté listo (≤ 30s)
 6. Muestra top-3 coincidencias con porcentaje de similitud
 

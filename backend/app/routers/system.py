@@ -31,7 +31,7 @@ async def get_network_info(
     _: CurrentUser = Depends(_admin),
 ) -> dict:
     """
-    Devuelve las URLs de red del servidor para configurar drones DJI y acceso HLS.
+    Devuelve las URLs de red del servidor para configurar drones (DJI u otras marcas que expongan RTMP) y acceso HLS.
     Solo admin. La IP se lee de SERVER_HOST (actualizada con aerofinder.sh ip <nueva_ip>).
     """
     host = os.getenv("SERVER_HOST", "localhost")

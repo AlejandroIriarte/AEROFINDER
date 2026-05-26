@@ -121,7 +121,7 @@ Versiones siguen [Semantic Versioning](https://semver.org/lang/es/): `MAJOR.MINO
 - Presigned URL flow: upload-url → PUT directo → confirm
 - Importación CSV de personas desaparecidas desde registros gov
 - AI worker: YOLOv8n + InsightFace buffalo_l
-- DJI telemetría: RTMP → MediaMTX → RTSP → AI worker
+- Telemetría de drones: RTMP → MediaMTX → RTSP → AI worker
 - Notification worker: push/email/SMS desde `notification_queue`
 - Migración 0005/0006: `face_embedding` pgvector, `recognition_active`
 

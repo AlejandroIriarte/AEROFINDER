@@ -102,11 +102,11 @@ export default function ConnectPage() {
           </p>
         </div>
 
-        {/* URL RTMP para el piloto DJI */}
+        {/* URL RTMP para el piloto */}
         {rtmpUrl && (
           <div className="px-6 py-4 border-b border-gray-100 bg-amber-50">
             <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-widest text-amber-600">
-              URL video dron (DJI / piloto)
+              URL RTMP — video dron
             </p>
             <div className="flex items-center gap-2">
               <span className="flex-1 rounded-lg bg-white px-3 py-2 font-mono text-xs text-amber-800 break-all border border-amber-200">

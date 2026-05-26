@@ -1,5 +1,5 @@
 # =============================================================================
-# AEROFINDER Backend — Router: Ingesta de telemetría GPS desde app Android DJI
+# AEROFINDER Backend — Router: Ingesta de telemetría GPS desde app Android (p.ej. DJI Fly u otra app del piloto)
 #
 # Endpoints:
 #   WS  /ws/ingest/telemetry?stream_key=<key>  — ingesta en tiempo real
@@ -310,7 +310,7 @@ async def ws_ingest_telemetry(
     stream_key: str = Query(..., description="stream_key del dron (= serial_number)"),
 ) -> None:
     """
-    Endpoint WebSocket para ingesta de telemetría desde la app Android DJI.
+    Endpoint WebSocket para ingesta de telemetría desde la app Android del piloto (p.ej. DJI Fly u otra app RTMP).
     Autenticación por stream_key (= serial_number del dron en la DB).
     Cierra con WS_1008 si el stream_key no corresponde a ningún dron registrado.
     """

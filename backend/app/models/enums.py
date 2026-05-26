@@ -19,10 +19,11 @@ from sqlalchemy import Enum as SAEnum
 # ── DOMINIO 1: Autenticación ──────────────────────────────────────────────────
 
 class RoleName(str, enum.Enum):
-    admin    = "admin"
-    buscador = "buscador"
-    ayudante = "ayudante"
-    familiar = "familiar"
+    super_admin = "super_admin"
+    admin       = "admin"
+    buscador    = "buscador"
+    ayudante    = "ayudante"
+    familiar    = "familiar"
 
 
 class NotificationChannel(str, enum.Enum):

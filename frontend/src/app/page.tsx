@@ -82,7 +82,7 @@ export default function LandingPage() {
               },
               {
                 title: "Drones Autónomos",
-                description: "Tecnología DJI integrada para búsqueda eficiente",
+                description: "Compatible con cualquier dron RTMP (DJI, Autel, Skydio y otros)",
                 icon: "🚁"
               },
               {

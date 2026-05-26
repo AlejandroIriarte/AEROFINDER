@@ -13,7 +13,7 @@ Sistema de búsqueda de personas desaparecidas con drones, IA (YOLO + FaceNet) y
 - Redis 7 Streams, MinIO
 - YOLOv8n + InsightFace buffalo_l
 - Next.js 14 App Router + Leaflet.js + hls.js
-- Kotlin + DJI Mobile SDK v5 (Android)
+- Kotlin + DJI Mobile SDK v5 (Android) (u otros SDK que expongan RTMP)
 
 ---
 
@@ -83,7 +83,7 @@ python main.py
 
 ### Pipeline de detección IA
 ```
-Dron DJI → RTMP rtmp://host:1935/{serial}
+Dron (DJI u otra marca con RTMP) → RTMP rtmp://host:1935/{serial}
   → MediaMTX → RTSP rtsp://mediamtx:8554/{serial}
   → AI Worker (OpenCV + YOLO + FaceNet)
   → Redis Stream aerofinder:detections
@@ -167,7 +167,7 @@ Dron DJI → RTMP rtmp://host:1935/{serial}
 - [x] BE-5: Redis consumer y MinIO
 - [x] BE-6: fotos personas (presigned URL), importación CSV gov, correcciones críticas
 - [x] AI-1: worker YOLO + FaceNet
-- [x] AI-2: DJI telemetría
+- [x] AI-2: telemetría de drones (RTMP)
 - [x] AI-3: notification worker
 - [x] AI-4: AI worker refactorizado — descubrimiento dinámico, recognition_active toggle, migraciones 0005/0006
 - [x] FE-1: estructura frontend y auth
@@ -216,12 +216,12 @@ Dron DJI → RTMP rtmp://host:1935/{serial}
 ### IP dinámica (implementado)
 - `SERVER_HOST` en `.env` es la única fuente de verdad para la IP del servidor
 - `GET /config/network-info` (admin) devuelve `server_ip`, `rtmp_url_template`, `hls_url_template`, `rtsp_url_template`
-- El panel admin muestra estas URLs con botón Copiar (para configurar DJI fácilmente)
+- El panel admin muestra estas URLs con botón Copiar (para configurar drones DJI u otra marca con RTMP fácilmente)
 - `./aerofinder.sh ip <nueva_ip>` actualiza TODAS las vars: `NEXT_PUBLIC_*`, `BACKEND_CORS_ORIGINS`, `SERVER_HOST` y `system_config.rtmp.base_url` en DB
 
 ### Misiones remotas (PENDIENTE — no implementado)
 Cuando el servidor está en casa y la misión es en otro lugar con internet de por medio:
-- **Opción A — Tailscale (recomendado para proyecto de grado)**: instalar en servidor + celular piloto DJI. Crea VPN mesh privada con IPs estables (`100.x.x.x`). Resuelve CGNAT sin port forwarding. Free tier hasta 100 dispositivos.
+- **Opción A — Tailscale (recomendado para proyecto de grado)**: instalar en servidor + en el celular del piloto (o dispositivo del piloto). Crea VPN mesh privada con IPs estables (`100.x.x.x`). Resuelve CGNAT sin port forwarding. Free tier hasta 100 dispositivos.
 - **Opción B — DDNS + port forwarding**: DuckDNS/No-IP da hostname estable. Router expone puertos 1935 (RTMP), 8888 (HLS), 8000 (API), 3000 (frontend). Falla si el ISP usa CGNAT.
 - **Opción C — VPS relay (~$5/mes)**: VPS con IP pública actúa de entrada. Túnel reverso al servidor de casa. Más robusto para producción real.
 - Para cualquier opción remota: agregar HTTPS (Let's Encrypt via Caddy/nginx) y cambiar WS a `wss://`.
