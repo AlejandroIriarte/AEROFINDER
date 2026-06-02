@@ -131,7 +131,7 @@ export function MissionAlertCard({ alert, missingPersonPhotos }: Props) {
 
   // Primera foto activa del desaparecido (frontal preferida)
   const personPhoto = missingPersonPhotos.find(
-    (p) => p.is_active && p.face_angle === "front"
+    (p) => p.is_active && p.face_angle === "frontal"
   ) ?? missingPersonPhotos.find((p) => p.is_active) ?? null;
 
   return (

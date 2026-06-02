@@ -11,14 +11,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useWebSocket } from "@/lib/websocket";
-import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi } from "@/lib/api";
+import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi, photosApi } from "@/lib/api";
 import { MissionMap } from "@/components/map/MissionMap";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
 import { DroneVideoMosaic } from "@/components/mission/DroneVideoMosaic";
 import { FieldReportPanel } from "@/components/mission/FieldReportPanel";
 import { FieldReportResultModal } from "@/components/mission/FieldReportResultModal";
-import type { Alert, Drone, FieldReport, Mission, MissionDrone, MissionStatus, StreamInfo } from "@/lib/types";
+import { MissionAlertCard } from "@/components/mission/MissionAlertCard";
+import type { Alert, Drone, FieldReport, Mission, MissionDrone, MissionStatus, PhotoResponse, StreamInfo } from "@/lib/types";
 
 // ── Helpers de presentación ───────────────────────────────────────────────────
 
@@ -38,18 +39,6 @@ const STATUS_COLOR: Record<string, string> = {
   completed:   "bg-blue-100 text-blue-700",
   interrupted: "bg-orange-100 text-orange-700",
   cancelled:   "bg-red-100 text-red-600",
-};
-
-const ALERT_LEVEL_LABEL: Record<string, string> = {
-  full:              "Coincidencia confirmada",
-  partial:           "Coincidencia probable",
-  confirmation_only: "Posible coincidencia",
-};
-
-const ALERT_LEVEL_COLOR: Record<string, string> = {
-  full:              "text-red-700 bg-red-50 border border-red-200",
-  partial:           "text-orange-700 bg-orange-50 border border-orange-200",
-  confirmation_only: "text-amber-700 bg-amber-50 border border-amber-200",
 };
 
 // Transiciones de estado válidas
@@ -73,6 +62,8 @@ const STATUS_TRANSITIONS: Record<string, { status: MissionStatus; label: string;
     { status: "cancelled", label: "Cancelar",   color: "bg-red-600 hover:bg-red-700 text-white" },
   ],
 };
+
+const CONFIRM_REQUIRED = new Set<MissionStatus>(["paused", "completed", "interrupted", "cancelled"]);
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
@@ -100,6 +91,10 @@ export default function MissionDetailPage() {
   const [fieldReports, setFieldReports]   = useState<FieldReport[]>([]);
   const [viewingReport, setViewingReport] = useState<FieldReport | null>(null);
   const [streams, setStreams]             = useState<StreamInfo[]>([]);
+  const [confirmAction, setConfirmAction] = useState<{ status: MissionStatus; label: string } | null>(null);
+  const [viewMode, setViewMode]           = useState<"map" | "video">("video");
+  const [latestDetections, setLatestDetections] = useState<Record<string, Array<{ bbox: { x: number; y: number; w: number; h: number }; detection_type: string; confidence: number; similarity?: number }>>>({});
+  const [missingPersonPhotos, setMissingPersonPhotos] = useState<PhotoResponse[]>([]);
 
   const canManage = user?.role === "admin" || user?.role === "buscador";
 
@@ -113,9 +108,33 @@ export default function MissionDetailPage() {
   const handleWsMessage = useCallback((raw: any) => {
     const msg = raw as { type: string; [key: string]: unknown };
     switch (msg.type) {
-      case "detection":
+      case "detection": {
+        // Actualizar recuadros en vivo por drone
+        const droneId = msg.drone_id as string | undefined;
+        const bbox    = msg.bbox as { x: number; y: number; w: number; h: number } | undefined;
+        if (droneId && bbox) {
+          const detType   = (msg.detection_type as string) ?? "person_silhouette";
+          const conf      = (msg.yolo_confidence as number) ?? (msg.confidence as number) ?? 0;
+          const sim       = msg.similarity_score as number | undefined;
+          setLatestDetections((prev) => ({
+            ...prev,
+            [droneId]: [{ bbox, detection_type: detType, confidence: conf, similarity: sim }],
+          }));
+          // Limpiar recuadro después de 5s
+          setTimeout(() => {
+            setLatestDetections((prev) => {
+              const next = { ...prev };
+              delete next[droneId];
+              return next;
+            });
+          }, 5_000);
+        }
+        alertsApi.list(missionId)
+          .then((a) => setRecentAlerts(Array.isArray(a) ? a.slice(0, 10) : []))
+          .catch(() => {});
+        break;
+      }
       case "alert":
-        // Las alertas se actualizan vía el stream de misión; recargamos las recientes
         alertsApi.list(missionId)
           .then((a) => setRecentAlerts(Array.isArray(a) ? a.slice(0, 10) : []))
           .catch(() => {});
@@ -164,6 +183,12 @@ export default function MissionDetailPage() {
         if (rtmpCfg) setRtmpBaseUrl(rtmpCfg.value_text);
         setStreams(streamsData as StreamInfo[]);
         setFieldReports(reportsData as FieldReport[]);
+        // Cargar fotos del desaparecido si la misión tiene uno asociado
+        if (m.missing_person_id) {
+          photosApi.list(m.missing_person_id)
+            .then(setMissingPersonPhotos)
+            .catch(() => {});
+        }
       })
       .catch(() => router.replace("/dashboard/missions"))
       .finally(() => setLoading(false));
@@ -176,7 +201,7 @@ export default function MissionDetailPage() {
     }
   }, [isLoading, user, router]);
 
-  // Cambio de estado de misión
+  // Cambio de estado de misión — con confirmación para acciones destructivas
   const handleStatusChange = useCallback(async (newStatus: MissionStatus) => {
     if (!mission) return;
     setStatusLoading(true);
@@ -185,17 +210,28 @@ export default function MissionDetailPage() {
       if (newStatus === "active" && !mission.started_at) {
         updates.started_at = new Date().toISOString();
       }
-      if (newStatus === "completed" || newStatus === "cancelled") {
+      if (newStatus === "completed" || newStatus === "cancelled" || newStatus === "interrupted") {
         updates.completed_at = new Date().toISOString();
       }
       const updated = await missionsApi.update(mission.id, updates);
       setMission(updated);
+      if (newStatus === "completed") {
+        router.push("/dashboard/detections");
+      }
     } catch {
       // Silencioso
     } finally {
       setStatusLoading(false);
     }
-  }, [mission]);
+  }, [mission, router]);
+
+  const handleStatusClick = useCallback((status: MissionStatus, label: string) => {
+    if (CONFIRM_REQUIRED.has(status)) {
+      setConfirmAction({ status, label });
+    } else {
+      handleStatusChange(status);
+    }
+  }, [handleStatusChange]);
 
   // Asignar dron
   const handleAssignDrone = useCallback(async () => {
@@ -254,13 +290,19 @@ export default function MissionDetailPage() {
   }
 
   // Primer dron asignado activo para el mapa
-  const activeDrone = assignedDrones.find((d) => !d.left_at);
-  const droneId     = activeDrone?.drone_id ?? "";
-  const transitions = STATUS_TRANSITIONS[mission.status] ?? [];
+  const activeDrone  = assignedDrones.find((d) => !d.left_at);
+  const droneId      = activeDrone?.drone_id ?? "";
+  const transitions  = STATUS_TRANSITIONS[mission.status] ?? [];
 
   // Drones disponibles (no asignados activamente a esta misión)
   const assignedDroneIds = new Set(assignedDrones.filter((d) => !d.left_at).map((d) => d.drone_id));
   const availableDrones  = allDrones.filter((d) => !assignedDroneIds.has(d.id));
+
+  // Drones para el mosaico (reutilizado en primary + secondary)
+  const mosaicDrones = assignedDrones
+    .filter((d) => !d.left_at)
+    .map((d) => allDrones.find((x) => x.id === d.drone_id))
+    .filter(Boolean) as Drone[];
 
   return (
     <div className="flex h-[calc(100vh-4rem)] flex-col">
@@ -288,13 +330,37 @@ export default function MissionDetailPage() {
           {STATUS_LABEL[mission.status] ?? mission.status}
         </span>
 
+        {/* Toggle mapa / video */}
+        <div className="flex shrink-0 rounded-lg border border-gray-200 bg-gray-100 p-0.5">
+          <button
+            onClick={() => setViewMode("map")}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+              viewMode === "map"
+                ? "bg-white text-gray-800 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            🗺 Mapa
+          </button>
+          <button
+            onClick={() => setViewMode("video")}
+            className={`rounded-md px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+              viewMode === "video"
+                ? "bg-white text-gray-800 shadow-sm"
+                : "text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            📹 Video
+          </button>
+        </div>
+
         {/* Botones de cambio de estado */}
         {canManage && transitions.length > 0 && (
           <div className="flex gap-1.5">
             {transitions.map((t) => (
               <button
                 key={t.status}
-                onClick={() => handleStatusChange(t.status)}
+                onClick={() => handleStatusClick(t.status, t.label)}
                 disabled={statusLoading}
                 className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${t.color}`}
               >
@@ -305,11 +371,21 @@ export default function MissionDetailPage() {
         )}
       </div>
 
-      {/* Cuerpo: mapa 70% + panel derecho 30% */}
+      {/* Cuerpo: primario 70% + panel derecho 30% — ambos siempre visibles */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Mapa */}
+
+        {/* Área primaria — grande (70%) */}
         <div className="relative h-full" style={{ width: "70%" }}>
-          {droneId ? (
+          {viewMode === "video" ? (
+            <DroneVideoMosaic
+              mission={mission}
+              assignedDrones={mosaicDrones}
+              streams={streams}
+              canManage={canManage}
+              onMissionUpdate={setMission}
+              latestDetections={latestDetections}
+            />
+          ) : droneId ? (
             <MissionMap
               missionId={missionId}
               droneId={droneId}
@@ -332,23 +408,35 @@ export default function MissionDetailPage() {
           )}
         </div>
 
-        {/* Panel derecho */}
+        {/* Panel derecho (30%) */}
         <div
           className="flex h-full flex-col overflow-hidden border-l border-gray-200 bg-white"
           style={{ width: "30%" }}
         >
-          {/* Mosaico de drones */}
-          <div className="shrink-0 border-b border-gray-100" style={{ height: "45%" }}>
-            <DroneVideoMosaic
-              mission={mission}
-              assignedDrones={assignedDrones
-                .filter((d) => !d.left_at)
-                .map((d) => allDrones.find((x) => x.id === d.drone_id))
-                .filter(Boolean) as Drone[]}
-              streams={streams}
-              canManage={canManage}
-              onMissionUpdate={setMission}
-            />
+          {/* Vista secundaria — intercambia con la primaria */}
+          <div className="shrink-0 border-b border-gray-100" style={{ height: "40%" }}>
+            {viewMode === "video" ? (
+              droneId ? (
+                <MissionMap
+                  missionId={missionId}
+                  droneId={droneId}
+                  userRole={user?.role ?? "buscador"}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center bg-gray-100">
+                  <p className="text-[11px] text-gray-400">Sin dron asignado</p>
+                </div>
+              )
+            ) : (
+              <DroneVideoMosaic
+                mission={mission}
+                assignedDrones={mosaicDrones}
+                streams={streams}
+                canManage={canManage}
+                onMissionUpdate={setMission}
+                latestDetections={latestDetections}
+              />
+            )}
           </div>
 
           {/* Drones asignados + URLs RTMP */}
@@ -502,38 +590,29 @@ export default function MissionDetailPage() {
 
           {/* Alertas recientes */}
           <div className="flex-1 overflow-y-auto px-4 py-2.5">
-            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-              Alertas recientes
-            </p>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                Alertas recientes
+              </p>
+              {recentAlerts.length > 0 && (
+                <button
+                  onClick={() => router.push("/dashboard/alerts")}
+                  className="text-[10px] font-semibold text-blue-600 transition-colors hover:text-blue-800"
+                >
+                  Ver todas →
+                </button>
+              )}
+            </div>
             {recentAlerts.length === 0 ? (
               <p className="text-xs text-gray-400">Sin alertas registradas</p>
             ) : (
               <ul className="space-y-2">
                 {recentAlerts.map((alert) => (
-                  <li
+                  <MissionAlertCard
                     key={alert.id}
-                    className={`rounded-md px-3 py-2 text-xs ${
-                      ALERT_LEVEL_COLOR[alert.content_level] ?? "bg-gray-50 text-gray-700 border border-gray-100"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <span className="font-semibold leading-tight">
-                        {ALERT_LEVEL_LABEL[alert.content_level] ?? alert.content_level}
-                      </span>
-                      <span className="shrink-0 text-[10px] opacity-60">
-                        {new Date(alert.generated_at).toLocaleTimeString("es-BO", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                    {alert.message_text && (
-                      <p className="mt-0.5 opacity-80 line-clamp-2">{alert.message_text}</p>
-                    )}
-                    <p className="mt-0.5 text-[10px] capitalize opacity-50">
-                      Estado: {alert.status}
-                    </p>
-                  </li>
+                    alert={alert}
+                    missingPersonPhotos={missingPersonPhotos}
+                  />
                 ))}
               </ul>
             )}
@@ -575,6 +654,42 @@ export default function MissionDetailPage() {
               className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
             >
               Asignar
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal de confirmación de cambio de estado */}
+      <Modal
+        open={!!confirmAction}
+        title={`¿${confirmAction?.label} la misión?`}
+        onClose={() => setConfirmAction(null)}
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-gray-600">
+            {confirmAction?.status === "completed" && "La misión se marcará como completada y serás redirigido a las detecciones registradas."}
+            {confirmAction?.status === "paused" && "La misión se pausará y el AI worker dejará de procesar el stream."}
+            {confirmAction?.status === "interrupted" && "La misión se marcará como interrumpida. Podrás reanudarla más adelante."}
+            {confirmAction?.status === "cancelled" && "La misión se cancelará. Esta acción no se puede deshacer."}
+          </p>
+          <div className="flex justify-end gap-2">
+            <button
+              onClick={() => setConfirmAction(null)}
+              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => {
+                if (confirmAction) {
+                  handleStatusChange(confirmAction.status);
+                  setConfirmAction(null);
+                }
+              }}
+              disabled={statusLoading}
+              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {statusLoading ? "…" : `Sí, ${confirmAction?.label}`}
             </button>
           </div>
         </div>
