@@ -310,7 +310,7 @@ async def process_stream(
                                     detection_type = "face_candidate"
 
                                 try:
-                                    ok, buf = cv2.imencode(".jpg", crop)
+                                    ok, buf = cv2.imencode(".jpg", frame)
                                     if ok:
                                         snapshot_b64 = base64.b64encode(
                                             buf.tobytes()
@@ -319,6 +319,15 @@ async def process_stream(
                                     logger.error(
                                         "Error al codificar snapshot JPEG", exc_info=True
                                     )
+
+                    # ── Snapshot person_silhouette (frame completo) ───────────
+                    if detection_type == "person_silhouette" and snapshot_b64 is None:
+                        try:
+                            ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+                            if ok:
+                                snapshot_b64 = base64.b64encode(buf.tobytes()).decode("utf-8")
+                        except Exception:
+                            pass  # snapshot opcional — no bloquea la detección
 
                     # ── Deduplicación espacio-temporal ────────────────────────
                     if deduplicator.is_duplicate(bbox_cx, bbox_cy, matched_person_id, frame_ts):
