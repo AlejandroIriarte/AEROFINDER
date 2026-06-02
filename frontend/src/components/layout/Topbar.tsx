@@ -19,6 +19,11 @@ interface TopbarProps {
 
 // Mapa de colores por rol
 const ROLE_STYLES: Record<RoleName, { bg: string; text: string; label: string }> = {
+  super_admin: {
+    bg: "bg-red-100",
+    text: "text-red-700",
+    label: "Super Admin",
+  },
   admin: {
     bg: "bg-violet-100",
     text: "text-violet-700",

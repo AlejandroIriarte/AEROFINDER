@@ -272,10 +272,11 @@ function AyudanteDashboard() {
 // ── Dashboard principal ───────────────────────────────────────────────────────
 
 const HEADING: Record<RoleName, string> = {
-  admin:    "Panel de administración",
-  buscador: "Panel de operaciones",
-  ayudante: "Panel de ayudante",
-  familiar: "Mis notificaciones",
+  super_admin: "Panel de sistema",
+  admin:       "Panel de administración",
+  buscador:    "Panel de operaciones",
+  ayudante:    "Panel de ayudante",
+  familiar:    "Mis notificaciones",
 };
 
 export default function DashboardPage() {
@@ -284,9 +285,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (user?.role === "familiar") router.replace("/dashboard/familiar");
+    if (user?.role === "super_admin") router.replace("/dashboard/superadmin");
   }, [user, router]);
 
-  if (!user || user.role === "familiar") return null;
+  if (!user || user.role === "familiar" || user.role === "super_admin") return null;
 
   return (
     <div className="p-5">
