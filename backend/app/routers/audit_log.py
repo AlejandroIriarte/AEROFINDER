@@ -19,14 +19,14 @@ from app.schemas.audit_log import AuditLogResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit-log", tags=["auditoría"])
 
-_admin = require_role(RoleName.admin)
+_super_admin = require_role(RoleName.super_admin)
 
 
 @router.get("/", response_model=list[AuditLogResponse])
 async def list_audit_log(
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    _: object = Depends(_admin),
+    _: object = Depends(_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> list[AuditLogResponse]:
     """
