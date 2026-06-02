@@ -80,14 +80,19 @@ export default function FamiliarReportPage() {
   const [toastType,    setToastType]    = useState<"success" | "error">("success");
   const [showToast,    setShowToast]    = useState(false);
   const [confirmedNoFace, setConfirmedNoFace] = useState(false);
-  const [ocrLoading, setOcrLoading] = useState(false);
-  const [ocrSuccess, setOcrSuccess] = useState(false);
-  const ocrInputRef = useRef<HTMLInputElement>(null);
+  const [ocrLoading,       setOcrLoading]       = useState(false);
+  const [ocrSuccess,       setOcrSuccess]       = useState(false);
+  const [ciAnversoPreview, setCiAnversoPreview] = useState<string | null>(null);
+  const [ciReversoPreview, setCiReversoPreview] = useState<string | null>(null);
+  const ciAnversoRef = useRef<HTMLInputElement>(null);
+  const ciReversoRef = useRef<HTMLInputElement>(null);
 
   // Limpiar object URLs al desmontar el componente
   useEffect(() => {
     return () => {
       photos.forEach((p) => { if (p.preview) URL.revokeObjectURL(p.preview); });
+      if (ciAnversoPreview) URL.revokeObjectURL(ciAnversoPreview);
+      if (ciReversoPreview) URL.revokeObjectURL(ciReversoPreview);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -185,14 +190,24 @@ export default function FamiliarReportPage() {
     setAttrs((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
-  const handleOcrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // ── Anverso: OCR + añadir como foto de referencia para IA ───────────────────
+  const handleCiAnverso = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Preview inmediato
+    const preview = URL.createObjectURL(file);
+    setCiAnversoPreview(preview);
+
+    // Añadir al array de fotos para que suba como referencia facial
+    const newPhoto: SelectedPhoto = { file, preview, status: "pending" };
+    await handlePhotosChange([...photos, newPhoto]);
+
+    // OCR en paralelo
     setOcrLoading(true);
     setOcrSuccess(false);
     try {
       const result: OcrDocumentResult = await ocrApi.scanDocument(file);
-      // Solo rellenar campos vacíos — nunca pisar lo que el usuario ya escribió
       setFormData((prev) => ({
         ...prev,
         full_name:           prev.full_name           || result.full_name           || prev.full_name,
@@ -203,16 +218,25 @@ export default function FamiliarReportPage() {
       const filled = [result.full_name, result.gender, result.date_of_birth, result.address].filter(Boolean).length;
       if (filled > 0) {
         setOcrSuccess(true);
-        showNotification("success", `Documento escaneado — ${filled} campo${filled > 1 ? "s" : ""} completado${filled > 1 ? "s" : ""} automáticamente.`);
+        showNotification("success", `Anverso escaneado — ${filled} campo${filled > 1 ? "s" : ""} completado${filled > 1 ? "s" : ""} automáticamente.`);
       } else {
-        showNotification("error", "No se pudieron extraer datos del documento. Intentá con otra foto más clara.");
+        showNotification("error", "No se pudieron extraer datos del anverso. Verificá que la foto sea clara y del lado con la foto de la persona.");
       }
     } catch {
-      showNotification("error", "No se pudo leer el documento. Intentá con otra foto más clara.");
+      showNotification("error", "No se pudo leer el anverso. Intentá con otra foto más clara.");
     } finally {
       setOcrLoading(false);
       e.target.value = "";
     }
+  };
+
+  // ── Reverso: solo preview, sin OCR (el reverso no tiene datos útiles) ───────
+  const handleCiReverso = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (ciReversoPreview) URL.revokeObjectURL(ciReversoPreview);
+    setCiReversoPreview(URL.createObjectURL(file));
+    e.target.value = "";
   };
 
   const validateForm = (): boolean => {
@@ -324,43 +348,83 @@ export default function FamiliarReportPage() {
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <h2 className="text-[13px] font-semibold text-slate-800">Datos básicos</h2>
 
-            {/* Botón escanear documento */}
-            <div className="flex items-center gap-3">
-              <input
-                ref={ocrInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={handleOcrFile}
-              />
-              <button
-                type="button"
-                disabled={ocrLoading}
-                onClick={() => ocrInputRef.current?.click()}
-                className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-[12px] font-semibold text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
-              >
-                {ocrLoading ? (
-                  <>
-                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                    Escaneando…
-                  </>
-                ) : (
-                  <>
-                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                    </svg>
-                    Escanear carnet / pasaporte
-                  </>
-                )}
-              </button>
-              {ocrSuccess && (
-                <span className="text-[11px] font-medium text-green-700">
-                  ✓ Datos extraídos del documento
-                </span>
-              )}
+            {/* Slots de carnet: anverso + reverso */}
+            <div>
+              <p className="text-[11px] text-slate-500 mb-2">
+                Escaneá ambos lados del carnet. El <strong>anverso</strong> extrae los datos y la foto de la persona para el reconocimiento facial.
+              </p>
+              <input ref={ciAnversoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCiAnverso} />
+              <input ref={ciReversoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCiReverso} />
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Anverso */}
+                <button
+                  type="button"
+                  disabled={ocrLoading}
+                  onClick={() => ciAnversoRef.current?.click()}
+                  className="relative flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-violet-300 bg-violet-50 p-3 hover:bg-violet-100 transition-colors disabled:opacity-60 overflow-hidden"
+                  style={{ minHeight: 96 }}
+                >
+                  {ciAnversoPreview ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ciAnversoPreview} alt="Anverso" className="absolute inset-0 h-full w-full object-cover rounded-xl opacity-60" />
+                      <span className="relative z-10 rounded bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-violet-700">
+                        {ocrLoading ? "Escaneando…" : ocrSuccess ? "✓ Datos extraídos" : "Cambiar anverso"}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      {ocrLoading ? (
+                        <svg className="h-5 w-5 animate-spin text-violet-500" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : (
+                        <svg className="h-5 w-5 text-violet-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      )}
+                      <span className="text-[11px] font-semibold text-violet-700">
+                        {ocrLoading ? "Escaneando…" : "Anverso"}
+                      </span>
+                      <span className="text-[10px] text-violet-500 text-center leading-tight">
+                        Lado con la foto
+                      </span>
+                    </>
+                  )}
+                </button>
+
+                {/* Reverso */}
+                <button
+                  type="button"
+                  onClick={() => ciReversoRef.current?.click()}
+                  className="relative flex flex-col items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 hover:bg-slate-100 transition-colors overflow-hidden"
+                  style={{ minHeight: 96 }}
+                >
+                  {ciReversoPreview ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={ciReversoPreview} alt="Reverso" className="absolute inset-0 h-full w-full object-cover rounded-xl opacity-60" />
+                      <span className="relative z-10 rounded bg-white/90 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+                        Cambiar reverso
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-5 w-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v4m0 0l-1.5-1.5M12 15l1.5-1.5" />
+                      </svg>
+                      <span className="text-[11px] font-semibold text-slate-600">Reverso</span>
+                      <span className="text-[10px] text-slate-400 text-center leading-tight">
+                        Lado con el código de barras
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
