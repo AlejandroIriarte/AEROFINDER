@@ -6,10 +6,11 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { detectionsApi, missionsApi } from "@/lib/api";
+import { drawDetectionBox } from "@/lib/drawDetectionBox";
 import type { Detection, DetectionReview, DetectionVerdict, Mission } from "@/lib/types";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -40,6 +41,51 @@ const VERDICT_COLOR: Record<DetectionVerdict, string> = {
 };
 
 type ReviewFilter = "all" | "reviewed" | "pending";
+
+// ── Canvas con snapshot + bbox superpuesto ────────────────────────────────────
+
+function SnapshotCanvas({
+  url,
+  bbox,
+  detectionType,
+  confidence,
+  similarity,
+}: {
+  url: string;
+  bbox: { x: number; y: number; w: number; h: number; frame_w: number; frame_h: number };
+  detectionType: string;
+  confidence: number;
+  similarity?: number;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      canvas.width  = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      ctx.drawImage(img, 0, 0);
+      drawDetectionBox(ctx, bbox, detectionType, confidence, similarity);
+    };
+    img.src = url;
+  }, [url, bbox, detectionType, confidence, similarity]);
+
+  return (
+    <div className="overflow-hidden rounded-lg bg-slate-900 flex justify-center">
+      <canvas
+        ref={canvasRef}
+        className="max-h-72 object-contain"
+        style={{ maxWidth: "100%" }}
+      />
+    </div>
+  );
+}
 
 // ── Modal de detalle ──────────────────────────────────────────────────────────
 
@@ -112,16 +158,15 @@ function DetectionModal({
         </div>
 
         <div className="px-6 py-5 space-y-5">
-          {/* Snapshot */}
+          {/* Snapshot con bbox superpuesto */}
           {detection.snapshot_url ? (
-            <div className="overflow-hidden rounded-lg bg-slate-900">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={detection.snapshot_url}
-                alt="Snapshot de detección"
-                className="mx-auto max-h-72 object-contain"
-              />
-            </div>
+            <SnapshotCanvas
+              url={detection.snapshot_url}
+              bbox={detection.bounding_box}
+              detectionType={detType}
+              confidence={detection.yolo_confidence}
+              similarity={detection.facenet_similarity > 0 ? detection.facenet_similarity : undefined}
+            />
           ) : (
             <div className="flex h-40 items-center justify-center rounded-lg bg-slate-100 text-[12px] text-slate-400">
               Sin snapshot disponible
