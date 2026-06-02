@@ -4,9 +4,9 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Toast } from "@/components/ui/Toast";
 import { PhotoUpload, type SelectedPhoto } from "@/components/ui/PhotoUpload";
-import { personsApi, photosApi } from "@/lib/api";
+import { personsApi, photosApi, ocrApi } from "@/lib/api";
 import { useAuthStore } from "@/store/auth";
-import type { PersonReportCreate, PhysicalAttributes, PhotoAnalysisResult } from "@/lib/types";
+import type { PersonReportCreate, PhysicalAttributes, PhotoAnalysisResult, OcrDocumentResult } from "@/lib/types";
 
 // ── Opciones de selectores ──────────────────────────────────────────────────
 const GENDER_OPTIONS     = [["", "No especificado"], ["M", "Masculino"], ["F", "Femenino"], ["O", "Otro"]];
@@ -80,6 +80,9 @@ export default function FamiliarReportPage() {
   const [toastType,    setToastType]    = useState<"success" | "error">("success");
   const [showToast,    setShowToast]    = useState(false);
   const [confirmedNoFace, setConfirmedNoFace] = useState(false);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrSuccess, setOcrSuccess] = useState(false);
+  const ocrInputRef = useRef<HTMLInputElement>(null);
 
   // Limpiar object URLs al desmontar el componente
   useEffect(() => {
@@ -180,6 +183,36 @@ export default function FamiliarReportPage() {
     const { name, value, type } = e.target;
     const checked = (e.target as HTMLInputElement).checked;
     setAttrs((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
+  };
+
+  const handleOcrFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOcrLoading(true);
+    setOcrSuccess(false);
+    try {
+      const result: OcrDocumentResult = await ocrApi.scanDocument(file);
+      // Solo rellenar campos vacíos — nunca pisar lo que el usuario ya escribió
+      setFormData((prev) => ({
+        ...prev,
+        full_name:           prev.full_name           || result.full_name           || prev.full_name,
+        gender:              prev.gender              || result.gender              || prev.gender,
+        date_of_birth:       prev.date_of_birth       || result.date_of_birth       || prev.date_of_birth,
+        last_known_location: prev.last_known_location || result.address             || prev.last_known_location,
+      }));
+      const filled = [result.full_name, result.gender, result.date_of_birth, result.address].filter(Boolean).length;
+      if (filled > 0) {
+        setOcrSuccess(true);
+        showNotification("success", `Documento escaneado — ${filled} campo${filled > 1 ? "s" : ""} completado${filled > 1 ? "s" : ""} automáticamente.`);
+      } else {
+        showNotification("error", "No se pudieron extraer datos del documento. Intentá con otra foto más clara.");
+      }
+    } catch {
+      showNotification("error", "No se pudo leer el documento. Intentá con otra foto más clara.");
+    } finally {
+      setOcrLoading(false);
+      e.target.value = "";
+    }
   };
 
   const validateForm = (): boolean => {
@@ -290,6 +323,45 @@ export default function FamiliarReportPage() {
           {/* ── SECCIÓN 1: Datos básicos ──────────────────────────────────── */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm space-y-4">
             <h2 className="text-[13px] font-semibold text-slate-800">Datos básicos</h2>
+
+            {/* Botón escanear documento */}
+            <div className="flex items-center gap-3">
+              <input
+                ref={ocrInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleOcrFile}
+              />
+              <button
+                type="button"
+                disabled={ocrLoading}
+                onClick={() => ocrInputRef.current?.click()}
+                className="flex items-center gap-2 rounded-lg border border-violet-300 bg-violet-50 px-3 py-2 text-[12px] font-semibold text-violet-700 hover:bg-violet-100 transition-colors disabled:opacity-50"
+              >
+                {ocrLoading ? (
+                  <>
+                    <svg className="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Escaneando…
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Escanear carnet / pasaporte
+                  </>
+                )}
+              </button>
+              {ocrSuccess && (
+                <span className="text-[11px] font-medium text-green-700">
+                  ✓ Datos extraídos del documento
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               {/* Nombre */}
