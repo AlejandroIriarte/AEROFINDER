@@ -18,6 +18,7 @@ from app.routers import (
     drones as drones_router,
     field_reports as field_reports_router,
     missions as missions_router,
+    ocr as ocr_router,
     persons as persons_router,
     photo_analysis as photo_analysis_router,
     photos as photos_router,
@@ -93,6 +94,7 @@ app.include_router(photo_analysis_router.router)
 app.include_router(admin_import_router.router)
 app.include_router(audit_log_router.router)
 app.include_router(field_reports_router.router)
+app.include_router(ocr_router.router)
 app.include_router(push_router.router)
 app.include_router(ws_router.router)       # WebSockets al final
 
