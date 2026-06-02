@@ -31,6 +31,14 @@ const BREADCRUMB_EXACT: Record<string, string> = {
   "/dashboard/familiar":               "Mis casos",
   "/dashboard/familiar/report":        "Reportar",
   "/dashboard/notifications":          "Notificaciones",
+  "/dashboard/superadmin":                "Sistema",
+  "/dashboard/superadmin/infrastructure": "Infraestructura",
+  "/dashboard/superadmin/admins":         "Gestión de admins",
+  "/dashboard/superadmin/sessions":       "Sesiones activas",
+  "/dashboard/superadmin/audit":          "Auditoría profunda",
+  "/dashboard/superadmin/hard-delete":    "Borrados definitivos",
+  "/dashboard/superadmin/config":         "Parámetros del sistema",
+  "/dashboard/superadmin/network":        "Red y URLs de drones",
 };
 
 function useBreadcrumb(): string {

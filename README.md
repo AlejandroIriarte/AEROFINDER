@@ -209,7 +209,8 @@ Documentación interactiva: `http://localhost:8000/docs`
 
 | Rol | Panel | Descripción |
 |-----|-------|-------------|
-| `admin` | `/dashboard` | Gestión completa + GPS en alertas |
+| `super_admin` | `/dashboard/superadmin` | Control total del sistema: gestión de admins, infraestructura, auditoría profunda, borrados definitivos |
+| `admin` | `/dashboard/admin` | Operaciones: misiones, personal de campo, drones, detecciones, aprobaciones |
 | `buscador` | `/dashboard` | Operaciones de misión + GPS |
 | `ayudante` | `/dashboard` | Revisión de detecciones (sin GPS) |
 | `familiar` | `/dashboard/familiar` | Solo sus casos + notificaciones |

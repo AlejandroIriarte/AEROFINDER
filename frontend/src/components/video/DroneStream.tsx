@@ -48,7 +48,7 @@ export function DroneStream({ streamKey, droneId, userRole, className = "" }: Dr
 
   // URL del stream
   const hlsBase = process.env.NEXT_PUBLIC_HLS_URL ?? "http://localhost:8888";
-  // El serial suele usarse como RTMP app name → path = serial tal cual (ej: TEST-DRONE-001)
+  // DJI usa el serial como RTMP app name → path = serial tal cual (ej: TEST-DRONE-001)
   const hlsUrl  = `${hlsBase}/${streamKey}/index.m3u8`;
 
   // ── WebSocket de telemetría ────────────────────────────────────────────────

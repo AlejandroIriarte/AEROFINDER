@@ -14,7 +14,6 @@
 import asyncio
 import logging
 import uuid
-from urllib.parse import urlparse, urlunparse
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
@@ -45,18 +44,6 @@ _PHOTO_VIEW_EXPIRES    = 3600       # segundos — 1 hora
 _staff     = require_role(RoleName.admin, RoleName.buscador)
 _approvers = require_role(RoleName.admin, RoleName.ayudante)
 
-
-def _rewrite_minio_host(url: str) -> str:
-    """
-    Reemplaza el host interno de MinIO (Docker) por el host externo del servidor.
-    La URL presignada contiene el endpoint interno (ej: http://minio:9000/...)
-    que no es accesible desde el browser del cliente.
-    settings.server_host tiene la IP pública del servidor (ej: 192.168.100.213).
-    """
-    internal = urlparse(settings.minio_url)
-    external_netloc = f"{settings.server_host}:{internal.port or 9000}"
-    parsed = urlparse(url)
-    return urlunparse(parsed._replace(netloc=external_netloc))
 
 
 async def _check_person_access(
@@ -110,11 +97,10 @@ async def _photo_to_response(photo: PersonPhoto, db: AsyncSession) -> PhotoRespo
         row = result.first()
         if row:
             bucket, object_key = row
-            raw_url = await asyncio.get_running_loop().run_in_executor(
+            view_url = await asyncio.get_running_loop().run_in_executor(
                 None,
                 lambda: minio_service.get_presigned_url(bucket, object_key, _PHOTO_VIEW_EXPIRES),
             )
-            view_url = _rewrite_minio_host(raw_url)
     except Exception:
         logger.error("Error al generar URL de vista para foto id=%s", photo.id, exc_info=True)
 
@@ -181,7 +167,6 @@ async def request_photo_upload_url(
                 expires_seconds=_PHOTO_PRESIGN_EXPIRES,
             ),
         )
-        upload_url = _rewrite_minio_host(upload_url)
     except Exception:
         logger.error("Error al generar presigned PUT URL para persona_id=%s", person_id, exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error al generar URL de subida")

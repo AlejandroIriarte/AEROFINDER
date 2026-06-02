@@ -35,8 +35,11 @@ import type {
   User,
   UserCreate,
   UserUpdate,
+  AdminSession,
+  InfraHealth,
   NetworkInfo,
   OcrDocumentResult,
+  SoftDeletedUser,
   StreamInfo,
 } from "@/lib/types";
 
@@ -563,6 +566,40 @@ export const pushApi = {
 
   async unsubscribe(endpoint: string): Promise<void> {
     await api.delete("/push/subscribe", { data: { endpoint } });
+  },
+};
+
+// ── API de super admin ────────────────────────────────────────────────────────
+
+export const superadminApi = {
+  async health(): Promise<InfraHealth> {
+    const { data } = await api.get<InfraHealth>("/superadmin/health");
+    return data;
+  },
+
+  async listAdmins(): Promise<User[]> {
+    const { data } = await api.get<User[]>("/superadmin/admins");
+    return data;
+  },
+
+  async listSessions(): Promise<AdminSession[]> {
+    const { data } = await api.get<AdminSession[]>("/superadmin/sessions");
+    return data;
+  },
+
+  async revokeSession(sessionId: string): Promise<void> {
+    await api.delete(`/superadmin/sessions/${sessionId}`);
+  },
+
+  async listSoftDeleted(): Promise<SoftDeletedUser[]> {
+    const { data } = await api.get<SoftDeletedUser[]>("/superadmin/soft-deleted");
+    return data;
+  },
+
+  async hardDeleteUser(userId: string): Promise<void> {
+    await api.delete(`/superadmin/users/${userId}/hard`, {
+      data: { confirm: true },
+    });
   },
 };
 
