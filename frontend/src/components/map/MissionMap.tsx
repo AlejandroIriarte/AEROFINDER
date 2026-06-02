@@ -60,9 +60,21 @@ export function MissionMap({ missionId, droneId, userRole }: MissionMapProps) {
   const [alertIds,    setAlertIds]    = useState<Set<string>>(new Set());
   const [centerLat,   setCenterLat]   = useState(0);
   const [centerLng,   setCenterLng]   = useState(0);
+  const [userPos,     setUserPos]     = useState<[number, number] | null>(null);
 
   // Ref FIFO de ruta para evitar re-renders innecesarios en el callback
   const routeRef = useRef<[number, number][]>([]);
+
+  // ── Geolocalización del usuario ───────────────────────────────────────────
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setUserPos([pos.coords.latitude, pos.coords.longitude]),
+      () => {/* permiso denegado o no disponible — silencioso */},
+      { enableHighAccuracy: true, maximumAge: 5000 },
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   // ── Carga del área de búsqueda ─────────────────────────────────────────────
   useEffect(() => {
@@ -169,6 +181,7 @@ export function MissionMap({ missionId, droneId, userRole }: MissionMapProps) {
           userRole={userRole}
           centerLat={centerLat}
           centerLng={centerLng}
+          userPos={userPos}
         />
       </div>
 

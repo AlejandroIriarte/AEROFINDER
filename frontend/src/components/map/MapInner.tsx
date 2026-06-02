@@ -13,6 +13,8 @@ import {
   Polygon,
   Polyline,
   ZoomControl,
+  CircleMarker,
+  Tooltip,
 } from "react-leaflet";
 import L from "leaflet";
 
@@ -51,6 +53,7 @@ interface MapInnerProps {
   userRole:   RoleName;
   centerLat:  number;
   centerLng:  number;
+  userPos:    [number, number] | null;   // posición GPS del usuario (puede ser null)
 }
 
 // ── Coordenadas por defecto: Cochabamba, Bolivia ──────────────────────────────
@@ -67,6 +70,7 @@ export default function MapInner({
   userRole,
   centerLat,
   centerLng,
+  userPos,
 }: MapInnerProps) {
   // Centro del mapa: primer punto del polígono o posición del dron o default
   const center: [number, number] =
@@ -146,6 +150,24 @@ export default function MapInner({
           isPulsing={alertIds.has(det.detection_id)}
         />
       ))}
+
+      {/* Posición del usuario (GPS del dispositivo) */}
+      {userPos && (
+        <CircleMarker
+          center={userPos}
+          radius={8}
+          pathOptions={{
+            color:       "#ffffff",
+            fillColor:   "#2563eb",
+            fillOpacity: 1,
+            weight:      3,
+          }}
+        >
+          <Tooltip permanent direction="top" offset={[0, -10]}>
+            <span style={{ fontSize: 11 }}>📍 Tú</span>
+          </Tooltip>
+        </CircleMarker>
+      )}
     </MapContainer>
   );
 }
