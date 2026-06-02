@@ -323,7 +323,7 @@ async def _handle_message(message_id: str, data: dict[str, Any]) -> None:
                             size_bytes=len(image_bytes),
                             mime_type="image/jpeg",
                             upload_status=FileUploadStatus.uploaded,
-                            retention_policy=FileRetentionPolicy.mission_lifetime,
+                            retention_policy=FileRetentionPolicy.permanent,
                         )
                         session.add(file_record)
                 snapshot_file_id = new_file_id

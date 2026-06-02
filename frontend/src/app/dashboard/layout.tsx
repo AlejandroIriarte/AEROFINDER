@@ -31,6 +31,7 @@ const BREADCRUMB_EXACT: Record<string, string> = {
   "/dashboard/familiar":               "Mis casos",
   "/dashboard/familiar/report":        "Reportar",
   "/dashboard/notifications":          "Notificaciones",
+  "/dashboard/superadmin/users":           "Usuarios del sistema",
   "/dashboard/superadmin":                "Sistema",
   "/dashboard/superadmin/infrastructure": "Infraestructura",
   "/dashboard/superadmin/admins":         "Gestión de admins",

@@ -24,8 +24,8 @@ from app.services.minio_service import minio_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/detections", tags=["detecciones"])
 
-_readers = require_role(RoleName.admin, RoleName.buscador, RoleName.ayudante)
-_reviewers = require_role(RoleName.admin, RoleName.buscador)
+_readers = require_role(RoleName.super_admin, RoleName.admin, RoleName.buscador, RoleName.ayudante)
+_reviewers = require_role(RoleName.super_admin, RoleName.admin, RoleName.buscador)
 
 # Roles que pueden ver coordenadas GPS de las detecciones
 _GPS_ROLES = {RoleName.admin, RoleName.buscador}

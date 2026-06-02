@@ -7,6 +7,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 
+import pydantic
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -338,6 +339,35 @@ async def me(
         role=current_user.role,
         is_active=user.is_active,
     )
+
+
+class VerifyPasswordRequest(pydantic.BaseModel):
+    password: str
+
+
+@router.post("/verify-password", status_code=status.HTTP_200_OK)
+async def verify_password_endpoint(
+    body: VerifyPasswordRequest,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Verifica que la contraseña proporcionada coincide con la del usuario autenticado.
+    No crea sesión. Usado para confirmar operaciones sensibles (ej: cambio de rol).
+    """
+    try:
+        result = await db.execute(select(User).where(User.id == current_user.id))
+        user: User | None = result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al verificar contraseña uid=%s", current_user.id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if user is None or not verify_password(body.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Contraseña incorrecta",
+        )
+    return {"ok": True}
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)

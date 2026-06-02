@@ -205,6 +205,12 @@ export const authApi = {
     );
     return data.access_token;
   },
+
+  // Verifica la contraseña del usuario autenticado sin crear sesión.
+  // Lanza error 401 si la contraseña es incorrecta.
+  async verifyPassword(password: string): Promise<void> {
+    await api.post("/auth/verify-password", { password });
+  },
 };
 
 // ── API de misiones ───────────────────────────────────────────────────────────
@@ -250,6 +256,20 @@ export const missionsApi = {
     const { data } = await api.post<Mission>(`/missions/${missionId}/recognition`, {
       person_detection: personDetection,
       face_recognition: faceRecognition,
+    });
+    return data;
+  },
+
+  async captureSnapshot(
+    missionId: string,
+    droneId: string,
+    imageB64: string,
+    detections: Array<{ bbox: object; detection_type: string; confidence: number; similarity?: number }>,
+  ): Promise<{ detection_id: string; snapshot_url: string }> {
+    const { data } = await api.post(`/missions/${missionId}/snapshots/manual`, {
+      drone_id: droneId,
+      image_b64: imageB64,
+      detections,
     });
     return data;
   },

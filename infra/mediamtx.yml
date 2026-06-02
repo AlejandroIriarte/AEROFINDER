@@ -9,6 +9,19 @@ logDestinations: [stdout]
 # API interna — el backend consulta streams activos
 api: yes
 apiAddress: :9997
+apiAllowOrigins: ["*"]
+
+# Sin autenticación — red Docker interna es la frontera de seguridad
+authMethod: internal
+authInternalUsers:
+- user: any
+  pass:
+  ips: []
+  permissions:
+  - action: api
+  - action: publish
+  - action: read
+  - action: playback
 
 # RTMP — drones DJI conectan aquí
 rtmp: yes
@@ -18,9 +31,9 @@ rtmpAddress: :1935
 hls: yes
 hlsAddress: :8888
 hlsAlwaysRemux: yes
-hlsSegmentCount: 3
+hlsSegmentCount: 7
 hlsSegmentDuration: 1s
-hlsPartDuration: 200ms
+hlsAllowOrigins: ["*"]
 
 # RTSP — AI worker lee desde aquí
 rtsp: yes

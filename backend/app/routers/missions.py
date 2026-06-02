@@ -3,12 +3,16 @@
 # Endpoints: CRUD /missions, drones asignados, waypoints, eventos, cobertura
 # =============================================================================
 
+import base64
+import hashlib
+import io
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
 from sqlalchemy import delete, select
@@ -534,3 +538,142 @@ async def create_field_report(
     })
 
     return {"id": str(report.id), "status": "pending"}
+
+
+# ── Snapshot manual ───────────────────────────────────────────────────────────
+
+class ManualSnapshotRequest(BaseModel):
+    drone_id: str
+    image_b64: str                          # JPEG en base64 — frame capturado en frontend
+    detections: Optional[list[dict]] = []  # [{bbox, detection_type, confidence}]
+
+
+class ManualSnapshotResponse(BaseModel):
+    detection_id: str
+    snapshot_url: str
+
+
+@router.post("/{mission_id}/snapshots/manual", response_model=ManualSnapshotResponse, status_code=status.HTTP_201_CREATED)
+async def capture_manual_snapshot(
+    mission_id: uuid.UUID,
+    body: ManualSnapshotRequest,
+    current_user: CurrentUser = Depends(_staff),
+    db: AsyncSession = Depends(get_db),
+) -> ManualSnapshotResponse:
+    """
+    Guarda un snapshot manual capturado desde el frontend.
+    El cliente envía el frame (JPEG base64) con los recuadros ya dibujados.
+    Se crea un registro de detección con snapshot para mostrarlo en la misión.
+    """
+    from app.models.enums import FileRetentionPolicy, FileUploadStatus, AIModelType
+    from app.models.files import File
+    from app.models.pipeline import Detection
+    from app.models.ai import AIModel
+    from app.services.minio_service import minio_service
+    from app.config import settings as _settings
+    from sqlalchemy import select
+
+    # Validar misión
+    result = await db.execute(select(Mission).where(Mission.id == mission_id))
+    mission: Mission | None = result.scalar_one_or_none()
+    if mission is None:
+        raise HTTPException(status_code=404, detail="Misión no encontrada")
+
+    # Decodificar imagen
+    try:
+        header, _, b64data = body.image_b64.partition(",")
+        image_bytes = base64.b64decode(b64data if b64data else body.image_b64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Imagen base64 inválida")
+
+    sha256_hash = hashlib.sha256(image_bytes).hexdigest()
+    file_id     = uuid.uuid4()
+    object_key  = f"missions/{mission_id}/snapshots/manual/{file_id}.jpg"
+
+    # Subir a MinIO
+    try:
+        minio_service.upload_file(
+            bucket=_settings.minio_bucket_snapshots,
+            object_key=object_key,
+            data=image_bytes,
+            mime_type="image/jpeg",
+            sha256_hash=sha256_hash,
+            size_bytes=len(image_bytes),
+        )
+    except Exception:
+        logger.error("Error al subir snapshot manual a MinIO", exc_info=True)
+        raise HTTPException(status_code=500, detail="Error al guardar el snapshot")
+
+    snapshot_url = minio_service.build_public_url(_settings.minio_bucket_snapshots, object_key)
+
+    # Registrar en tabla files
+    file_record = File(
+        id=file_id,
+        bucket=_settings.minio_bucket_snapshots,
+        object_key=object_key,
+        sha256_hash=sha256_hash,
+        size_bytes=len(image_bytes),
+        mime_type="image/jpeg",
+        upload_status=FileUploadStatus.uploaded,
+        retention_policy=FileRetentionPolicy.permanent,
+        uploaded_by=current_user.id,
+    )
+    db.add(file_record)
+    await db.flush()
+
+    # Resolver IDs de modelos activos
+    det_result = await db.execute(
+        select(AIModel.id).where(AIModel.model_type == AIModelType.object_detection, AIModel.is_active.is_(True)).limit(1)
+    )
+    rec_result = await db.execute(
+        select(AIModel.id).where(AIModel.model_type == AIModelType.face_recognition, AIModel.is_active.is_(True)).limit(1)
+    )
+    detection_model_id   = det_result.scalar_one_or_none()
+    recognition_model_id = rec_result.scalar_one_or_none()
+
+    if detection_model_id is None or recognition_model_id is None:
+        raise HTTPException(status_code=500, detail="Modelos IA no configurados")
+
+    # Extraer datos de la primera detección si existe
+    drone_id_parsed = uuid.UUID(body.drone_id)
+    first_det = body.detections[0] if body.detections else {}
+    bbox       = first_det.get("bbox", {})
+    yolo_conf  = float(first_det.get("confidence", 0.0))
+    face_sim   = float(first_det.get("similarity", 0.0))
+
+    detection_id = uuid.uuid4()
+    detection = Detection(
+        id=detection_id,
+        mission_id=mission_id,
+        drone_id=drone_id_parsed,
+        missing_person_id=mission.missing_person_id,
+        detection_model_id=detection_model_id,
+        recognition_model_id=recognition_model_id,
+        frame_timestamp=datetime.now(timezone.utc),
+        yolo_confidence=yolo_conf if yolo_conf > 0 else 0.01,
+        facenet_similarity=face_sim,
+        bounding_box=bbox,
+        snapshot_file_id=file_id,
+    )
+    db.add(detection)
+    await db.flush()
+
+    # Broadcast WS a la sala de la misión
+    from app.core.ws_manager import ws_manager
+    await ws_manager.broadcast(f"mission:{mission_id}", {
+        "type": "detection",
+        "detection_id": str(detection_id),
+        "mission_id": str(mission_id),
+        "drone_id": body.drone_id,
+        "detection_type": first_det.get("detection_type", "manual_snapshot"),
+        "yolo_confidence": yolo_conf,
+        "similarity_score": face_sim,
+        "bbox": bbox,
+        "snapshot_url": snapshot_url,
+        "frame_timestamp": datetime.now(timezone.utc).isoformat(),
+    })
+
+    return ManualSnapshotResponse(
+        detection_id=str(detection_id),
+        snapshot_url=snapshot_url,
+    )

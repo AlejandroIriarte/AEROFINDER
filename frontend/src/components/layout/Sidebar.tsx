@@ -111,6 +111,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                   <NavLink href="/dashboard/superadmin/infrastructure" label="Infraestructura" icon={Icons.health} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/infrastructure")} />
                 </CollapsibleNavGroup>
                 <CollapsibleNavGroup label="Accesos críticos" storageKey="sa_accesos" defaultOpen={true}>
+                  <NavLink href="/dashboard/superadmin/users" label="Usuarios del sistema" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/users")} />
                   <NavLink href="/dashboard/superadmin/admins" label="Gestión de admins" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/admins")} />
                   <NavLink href="/dashboard/superadmin/sessions" label="Sesiones activas" icon={Icons.lock} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/sessions")} />
                 </CollapsibleNavGroup>
@@ -127,6 +128,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
               <>
                 <NavLink href="/dashboard/superadmin" label="Resumen" icon={Icons.home} isOpen={false} isActive={pathname === "/dashboard/superadmin"} />
                 <NavLink href="/dashboard/superadmin/infrastructure" label="Infraestructura" icon={Icons.health} isOpen={false} isActive={isActive("/dashboard/superadmin/infrastructure")} />
+                <NavLink href="/dashboard/superadmin/users" label="Usuarios" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/users")} />
                 <NavLink href="/dashboard/superadmin/admins" label="Admins" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/admins")} />
                 <NavLink href="/dashboard/superadmin/sessions" label="Sesiones" icon={Icons.lock} isOpen={false} isActive={isActive("/dashboard/superadmin/sessions")} />
                 <NavLink href="/dashboard/superadmin/audit" label="Auditoría" icon={Icons.logs} isOpen={false} isActive={isActive("/dashboard/superadmin/audit")} />
@@ -152,7 +154,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 </CollapsibleNavGroup>
                 <CollapsibleNavGroup label="Recursos" storageKey="adm_recursos" defaultOpen={true}>
                   <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={isOpen} isActive={isActive("/dashboard/drones")} />
-                  <NavLink href="/dashboard/users" label="Personal de campo" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/users")} />
+                  <NavLink href="/dashboard/superadmin/users" label="Personal de campo" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/users")} />
                   <NavLink href="/dashboard/persons" label="Personas buscadas" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/persons")} />
                 </CollapsibleNavGroup>
               </>
@@ -164,7 +166,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                 <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
                 <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={false} isActive={isActive("/dashboard/drones")} />
-                <NavLink href="/dashboard/users" label="Personal" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/users")} />
+                <NavLink href="/dashboard/superadmin/users" label="Personal" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/users")} />
                 <NavLink href="/dashboard/persons" label="Personas" icon={Icons.persons} isOpen={false} isActive={isActive("/dashboard/persons")} />
               </>
             )}

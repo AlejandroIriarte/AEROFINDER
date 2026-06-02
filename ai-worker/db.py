@@ -511,7 +511,7 @@ async def insert_face_embedding(photo_id: str, missing_person_id: str, vector: "
                     text(
                         """
                         SELECT id FROM ai_models
-                        WHERE name = 'insightface_buffalo_l'
+                        WHERE model_type = 'face_recognition'
                         LIMIT 1
                         """
                     )
@@ -521,8 +521,8 @@ async def insert_face_embedding(photo_id: str, missing_person_id: str, vector: "
                     result = await session.execute(
                         text(
                             """
-                            INSERT INTO ai_models (name, version, task, framework)
-                            VALUES ('insightface_buffalo_l', '1.0', 'face_recognition', 'onnxruntime')
+                            INSERT INTO ai_models (name, model_type, version, embedding_dim, is_active)
+                            VALUES ('buffalo_l', 'face_recognition', '1.0', 512, TRUE)
                             RETURNING id
                             """
                         )
@@ -535,7 +535,7 @@ async def insert_face_embedding(photo_id: str, missing_person_id: str, vector: "
                     text(
                         """
                         INSERT INTO face_embeddings (photo_id, model_id, embedding)
-                        VALUES (:photo_id, :model_id, :embedding::vector)
+                        VALUES (:photo_id, :model_id, CAST(:embedding AS vector))
                         ON CONFLICT (photo_id, model_id) DO NOTHING
                         """
                     ),
