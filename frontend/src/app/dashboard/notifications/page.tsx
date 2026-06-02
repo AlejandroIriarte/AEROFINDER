@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useWebSocket } from "@/lib/websocket";
 import { AlertCard } from "@/components/alerts/AlertCard";
-import { missionsApi } from "@/lib/api";
+import { missionsApi, personsApi } from "@/lib/api";
 import type { DetectionWSMessage } from "@/components/map/DetectionMarker";
 import type { Mission } from "@/lib/types";
 import { PageHeader } from "@/components/dashboard/PageHeader";
@@ -126,6 +126,45 @@ function NoMissionEmptyState() {
   );
 }
 
+/* ---------- empty state: caso aprobado pero sin misión asignada ---------- */
+function CasePendingMissionState({ personName }: { personName?: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center px-4 py-6">
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 via-orange-500 to-amber-400 p-8 text-center text-white shadow-xl">
+        <div className="pointer-events-none absolute -top-12 -right-12 h-40 w-40 rounded-full bg-white/10" />
+        <div className="pointer-events-none absolute -bottom-8 -left-8 h-28 w-28 rounded-full bg-white/10" />
+
+        <div className="relative mx-auto mb-5 flex h-24 w-24 items-center justify-center">
+          <div className="absolute inset-0 rounded-full bg-white/20 animate-pulse" style={{ animationDuration: "2s" }} />
+          <div className="absolute inset-2 rounded-full bg-white/20" />
+          <svg viewBox="0 0 64 64" fill="none" className="relative h-14 w-14" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="32" cy="22" r="10" fill="white" opacity="0.95"/>
+            <path d="M16 52 C16 42 48 42 48 52" fill="white" opacity="0.95"/>
+            <circle cx="50" cy="46" r="10" fill="#F59E0B" stroke="white" strokeWidth="2"/>
+            <path d="M50 40 L50 47 M50 50 L50 51" stroke="white" strokeWidth="2.5" strokeLinecap="round"/>
+          </svg>
+        </div>
+
+        <h2 className="text-[18px] font-bold">
+          {personName ? `"${personName}" registrado` : "Caso registrado"}
+        </h2>
+        <p className="mt-2 text-[13px] leading-relaxed text-amber-50">
+          Tu caso está aprobado. Nuestro equipo está coordinando la asignación de drones para iniciar la búsqueda.
+        </p>
+      </div>
+
+      <div className="mt-4 text-center">
+        <Link
+          href="/dashboard/familiar"
+          className="text-[12px] text-blue-500 hover:underline"
+        >
+          Ver mis casos reportados →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /* ---------- empty state: misión existe pero sin alertas ---------- */
 function SearchingEmptyState({ missionName }: { missionName?: string }) {
   return (
@@ -161,9 +200,11 @@ export default function NotificationsPage() {
   const user      = useAuthStore((s) => s.user);
   const isLoading = useAuthStore((s) => s.isLoading);
 
-  const [mission,      setMission]      = useState<Mission | null>(null);
-  const [missionId,    setMissionId]    = useState<string | null>(null);
-  const [alerts,       setAlerts]       = useState<DetectionWSMessage[]>([]);
+  const [mission,        setMission]        = useState<Mission | null>(null);
+  const [missionId,      setMissionId]      = useState<string | null>(null);
+  const [hasPerson,      setHasPerson]      = useState(false);
+  const [personName,     setPersonName]     = useState<string | undefined>(undefined);
+  const [alerts,         setAlerts]         = useState<DetectionWSMessage[]>([]);
   const [loadingMission, setLoadingMission] = useState(true);
 
   // Protección client-side: solo familiar
@@ -173,18 +214,22 @@ export default function NotificationsPage() {
     }
   }, [isLoading, user, router]);
 
-  // Buscar la misión activa asociada a este familiar
+  // Buscar la misión activa asociada a este familiar; si no hay, ver si tiene persona registrada
   useEffect(() => {
     if (!user || user.role !== "familiar") return;
     let cancelled = false;
 
-    missionsApi.list().then((missions) => {
+    Promise.all([
+      missionsApi.list().catch(() => [] as Mission[]),
+      personsApi.list().catch(() => []),
+    ]).then(([missions, persons]) => {
       if (cancelled) return;
       const active = missions.find((m) => m.status === "active") ?? missions[0] ?? null;
       setMission(active ?? null);
       setMissionId(active?.id ?? null);
-    }).catch(() => { /* sin misión disponible */ })
-      .finally(() => { if (!cancelled) setLoadingMission(false); });
+      setHasPerson(persons.length > 0);
+      if (persons.length > 0) setPersonName(persons[0].full_name);
+    }).finally(() => { if (!cancelled) setLoadingMission(false); });
 
     return () => { cancelled = true; };
   }, [user]);
@@ -214,10 +259,6 @@ export default function NotificationsPage() {
 
   if (isLoading || !user) return null;
   if (user.role !== "familiar") return null;
-
-  const personName = mission
-    ? (mission as unknown as { missing_person_name?: string }).missing_person_name
-    : null;
 
   return (
     <div className="p-5">
@@ -254,6 +295,8 @@ export default function NotificationsPage() {
       {/* Contenido principal */}
       {loadingMission ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
+      ) : !mission && hasPerson ? (
+        <CasePendingMissionState personName={personName} />
       ) : !mission ? (
         <NoMissionEmptyState />
       ) : alerts.length === 0 ? (

@@ -440,3 +440,14 @@ export interface UploadUrlResponse {
   object_name: string;
   photo_index: number;
 }
+
+// ── OCR de documentos ─────────────────────────────────────────────────────────
+
+export interface OcrDocumentResult {
+  document_type:   "ci_boliviana" | "passport" | "other";
+  full_name:       string | null;
+  date_of_birth:   string | null;   // ISO YYYY-MM-DD
+  gender:          string | null;   // "M" | "F"
+  document_number: string | null;
+  address:         string | null;
+}

@@ -36,6 +36,7 @@ import type {
   UserCreate,
   UserUpdate,
   NetworkInfo,
+  OcrDocumentResult,
   StreamInfo,
 } from "@/lib/types";
 
@@ -562,6 +563,17 @@ export const pushApi = {
 
   async unsubscribe(endpoint: string): Promise<void> {
     await api.delete("/push/subscribe", { data: { endpoint } });
+  },
+};
+
+// ── API de OCR de documentos ──────────────────────────────────────────────────
+
+export const ocrApi = {
+  async scanDocument(file: File): Promise<OcrDocumentResult> {
+    const formData = new FormData();
+    formData.append("file", file);
+    const { data } = await api.post<OcrDocumentResult>("/ocr/document", formData);
+    return data;
   },
 };
 
