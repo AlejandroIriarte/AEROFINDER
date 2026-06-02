@@ -22,11 +22,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/users", tags=["usuarios"])
 
 _admin = require_role(RoleName.admin)
+_super_admin = require_role(RoleName.super_admin)
+_admin_or_super = require_role(RoleName.admin, RoleName.super_admin)
 
 
 @router.get("/roles", response_model=list[dict], tags=["roles"])
 async def list_roles(
-    _: CurrentUser = Depends(_admin),
+    _: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict]:
     """Lista todos los roles disponibles. Solo admin."""
@@ -57,7 +59,7 @@ def _build_user_response(user: User, role_name: RoleName) -> UserResponse:
 async def list_users(
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=20, le=100),
-    _: CurrentUser = Depends(_admin),
+    _: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> list[UserResponse]:
     """Lista todos los usuarios del sistema. Solo admin."""
@@ -79,10 +81,10 @@ async def list_users(
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 async def create_user(
     body: UserCreate,
-    current_user: CurrentUser = Depends(_admin),
+    current_user: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
-    """Crea un nuevo usuario. Solo admin."""
+    """Crea un nuevo usuario. Admin puede crear buscador/ayudante/familiar. Super admin puede crear cualquier rol."""
     # Verificar que el role_id existe
     try:
         role_result = await db.execute(select(Role).where(Role.id == body.role_id))
@@ -93,6 +95,14 @@ async def create_user(
 
     if role is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
+
+    # Solo super_admin puede crear admins o super_admins
+    restricted_roles = {RoleName.admin, RoleName.super_admin}
+    if role.name in restricted_roles and current_user.role != RoleName.super_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo el super admin puede crear cuentas con rol admin o super_admin",
+        )
 
     # Verificar email único
     try:
@@ -125,7 +135,7 @@ async def create_user(
 @router.get("/{user_id}", response_model=UserResponse)
 async def get_user(
     user_id: uuid.UUID,
-    current_user: CurrentUser = Depends(_admin),
+    current_user: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Obtiene un usuario por ID. Solo admin."""
@@ -150,7 +160,7 @@ async def get_user(
 async def update_user(
     user_id: uuid.UUID,
     body: UserUpdate,
-    current_user: CurrentUser = Depends(_admin),
+    current_user: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> UserResponse:
     """Actualiza un usuario. Solo admin."""
@@ -188,6 +198,15 @@ async def update_user(
 
         if new_role is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Rol no encontrado")
+
+        # Solo super_admin puede asignar roles admin/super_admin
+        restricted_roles = {RoleName.admin, RoleName.super_admin}
+        if new_role.name in restricted_roles and current_user.role != RoleName.super_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Solo el super admin puede asignar roles de admin",
+            )
+
         user.role_id = body.role_id
         current_role = new_role
 
@@ -197,7 +216,7 @@ async def update_user(
 @router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deactivate_user(
     user_id: uuid.UUID,
-    current_user: CurrentUser = Depends(_admin),
+    current_user: CurrentUser = Depends(_admin_or_super),
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """

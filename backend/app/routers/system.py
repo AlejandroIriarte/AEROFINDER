@@ -22,16 +22,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/config", tags=["configuración"])
 
 _admin = require_role(RoleName.admin)
+_super_admin = require_role(RoleName.super_admin)
 # Todos los roles autenticados pueden leer la configuración (los workers también la leen)
 _any_auth = get_current_user
 
 
 @router.get("/network-info")
 async def get_network_info(
-    _: CurrentUser = Depends(_admin),
+    _: CurrentUser = Depends(_super_admin),
 ) -> dict:
     """
-    Devuelve las URLs de red del servidor para configurar drones (DJI u otras marcas que expongan RTMP) y acceso HLS.
+    Devuelve las URLs de red del servidor para configurar drones DJI y acceso HLS.
     Solo admin. La IP se lee de SERVER_HOST (actualizada con aerofinder.sh ip <nueva_ip>).
     """
     host = os.getenv("SERVER_HOST", "localhost")
@@ -90,12 +91,12 @@ async def get_config(
 async def update_config(
     config_key: str,
     body: ConfigUpdate,
-    current_user: CurrentUser = Depends(_admin),
+    current_user: CurrentUser = Depends(_super_admin),
     db: AsyncSession = Depends(get_db),
 ) -> ConfigResponse:
     """
     Actualiza el valor de un parámetro de configuración.
-    Solo admin. El cambio se propaga a los workers en ≤ 30s (via caché Redis en BE-5).
+    Solo super_admin. El cambio se propaga a los workers en ≤ 30s (via caché Redis en BE-5).
     """
     try:
         result = await db.execute(

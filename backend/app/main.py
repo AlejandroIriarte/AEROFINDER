@@ -24,6 +24,7 @@ from app.routers import (
     photos as photos_router,
     public as public_router,
     push as push_router,
+    superadmin as superadmin_router,
     system as system_router,
     telemetry as telemetry_router,
     users as users_router,
@@ -95,6 +96,7 @@ app.include_router(admin_import_router.router)
 app.include_router(audit_log_router.router)
 app.include_router(field_reports_router.router)
 app.include_router(ocr_router.router)
+app.include_router(superadmin_router.router)
 app.include_router(push_router.router)
 app.include_router(ws_router.router)       # WebSockets al final
 
