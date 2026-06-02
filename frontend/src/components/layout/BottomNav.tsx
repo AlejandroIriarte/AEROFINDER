@@ -69,6 +69,11 @@ const IcoMore = () => (
 );
 
 const ITEMS_BY_ROLE: Record<RoleName, BottomNavItem[]> = {
+  super_admin: [
+    { label: "Sistema",  href: "/dashboard/superadmin",          icon: <IcoHome /> },
+    { label: "Sesiones", href: "/dashboard/superadmin/sessions", icon: <IcoAlerts /> },
+    { label: "Admins",   href: "/dashboard/superadmin/admins",   icon: <IcoPersons /> },
+  ],
   admin:    [
     { label: "Inicio",    href: "/dashboard",          icon: <IcoHome /> },
     { label: "Personas",  href: "/dashboard/persons",  icon: <IcoPersons /> },
