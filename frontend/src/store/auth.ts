@@ -68,6 +68,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const response = await authApi.login(email, password);
 
+      // Setear cookie ANTES de cambiar isAuthenticated — el middleware la
+      // necesita en el primer RSC fetch cuando useEffect dispara router.replace
+      const refreshToken = response.refresh_token;
+      if (refreshToken) {
+        Cookies.set(REFRESH_COOKIE, refreshToken, { ...COOKIE_OPTIONS, path: "/" });
+      }
+
       // Guardar access_token en memoria y localStorage para sobrevivir navegación
       if (typeof window !== "undefined") {
         localStorage.setItem(TOKEN_KEY, response.access_token);
@@ -81,12 +88,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // Obtener datos del usuario inmediatamente
       const user = await authApi.me();
       set({ user, isLoading: false, isInitialized: true });
-
-      // Guardar refresh_token en cookie si el backend lo devuelve
-      const refreshToken = response.refresh_token;
-      if (refreshToken) {
-        Cookies.set(REFRESH_COOKIE, refreshToken, COOKIE_OPTIONS);
-      }
     } catch (error) {
       set({ isLoading: false });
       throw error;

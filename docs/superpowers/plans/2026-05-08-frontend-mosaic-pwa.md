@@ -986,7 +986,7 @@ systemApi.getNetworkInfo().then(setNetworkInfo).catch(() => {});
         value={editForm.model}
         onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
         className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="DJI Mini 2 — Piloto Juan"
+        placeholder="Ej: Dron (DJI u otra marca con RTMP) — Piloto Juan"
       />
     </div>
     <div>

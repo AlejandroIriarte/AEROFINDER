@@ -5,7 +5,7 @@
 
 // ── Enums como union types ────────────────────────────────────────────────────
 
-export type RoleName = "admin" | "buscador" | "ayudante" | "familiar";
+export type RoleName = "super_admin" | "admin" | "buscador" | "ayudante" | "familiar";
 
 export type MissionStatus =
   | "planned"
@@ -439,6 +439,41 @@ export interface UploadUrlResponse {
   presigned_url: string;
   object_name: string;
   photo_index: number;
+}
+
+// ── Super Admin ───────────────────────────────────────────────────────────────
+
+export interface ServiceHealth {
+  status: "ok" | "error" | "stale" | "unknown";
+  latency_ms?: number | null;
+  detail?: string | null;
+}
+
+export interface InfraHealth {
+  redis:     ServiceHealth;
+  minio:     ServiceHealth;
+  mediamtx:  ServiceHealth;
+  ai_worker: ServiceHealth;
+}
+
+export interface AdminSession {
+  id: string;
+  user_id: string;
+  user_name: string;
+  user_email: string;
+  user_role: string;
+  ip_address: string;
+  user_agent: string | null;
+  issued_at: string;
+  expires_at: string;
+}
+
+export interface SoftDeletedUser {
+  id: string;
+  email: string;
+  full_name: string;
+  role: string;
+  deactivated_at: string | null;
 }
 
 // ── OCR de documentos ─────────────────────────────────────────────────────────

@@ -32,8 +32,22 @@ class MinioService:
         parsed = urlparse(settings.minio_url)
         endpoint = parsed.netloc or parsed.path
 
+        # Cliente interno: para operaciones de API dentro de Docker (put, stat, delete)
         self._client = Minio(
             endpoint=endpoint,
+            access_key=settings.minio_access_key,
+            secret_key=settings.minio_secret_key,
+            secure=settings.minio_secure,
+        )
+
+        # Cliente externo: SOLO para generar URLs presignadas.
+        # La firma AWS Signature V4 incluye el Host header; si generamos con
+        # el host interno (minio:9000) y luego reescribimos el host, la firma
+        # es inválida y MinIO devuelve 403.
+        # Generación de presigned URLs es cómputo local HMAC — no hace requests HTTP.
+        port = parsed.port or 9000
+        self._presign_client = Minio(
+            endpoint=f"{settings.server_host}:{port}",
             access_key=settings.minio_access_key,
             secret_key=settings.minio_secret_key,
             secure=settings.minio_secure,
@@ -145,7 +159,7 @@ class MinioService:
         Útil para que clientes descarguen archivos sin exponer credenciales.
         """
         try:
-            url = self._client.presigned_get_object(
+            url = self._presign_client.presigned_get_object(
                 bucket_name=bucket,
                 object_name=object_key,
                 expires=timedelta(seconds=expires_seconds),
@@ -172,7 +186,7 @@ class MinioService:
         """
         try:
             self._ensure_bucket(bucket)
-            url = self._client.presigned_put_object(
+            url = self._presign_client.presigned_put_object(
                 bucket_name=bucket,
                 object_name=object_key,
                 expires=timedelta(seconds=expires_seconds),

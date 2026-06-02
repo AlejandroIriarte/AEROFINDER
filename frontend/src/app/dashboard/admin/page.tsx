@@ -1,15 +1,15 @@
 // =============================================================================
 // AEROFINDER Frontend — Panel de control (admin)
-// Stats rápidos, links a herramientas, red info, misiones activas, flota drones.
+// Stats rápidos, links a herramientas, misiones activas, flota drones.
 // =============================================================================
 
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
-import { missionsApi, dronesApi, systemApi } from "@/lib/api";
+import { missionsApi, dronesApi } from "@/lib/api";
 import { RoleGuard } from "@/components/ui/RoleGuard";
-import type { Mission, Drone, NetworkInfo } from "@/lib/types";
+import type { Mission, Drone } from "@/lib/types";
 
 // ── Helpers de presentación ───────────────────────────────────────────────────
 
@@ -37,68 +37,6 @@ const DRONE_STATUS_COLOR: Record<string, string> = {
   maintenance:     "bg-amber-100 text-amber-700",
   out_of_service:  "bg-red-100 text-red-600",
 };
-
-// ── Sección: Información de red para drones ───────────────────────────────────
-
-function NetworkInfoSection({ info }: { info: NetworkInfo }) {
-  const [copied, setCopied] = useState<string | null>(null);
-
-  const copy = (text: string, key: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-      setCopied(key);
-      setTimeout(() => setCopied(null), 2000);
-    });
-  };
-
-  const rows: { label: string; value: string; key: string; hint?: string }[] = [
-    {
-      label: "IP del servidor",
-      value: info.server_ip,
-      key: "ip",
-      hint: "Actualizar con: ./aerofinder.sh ip <nueva_ip>",
-    },
-    {
-      label: "RTMP — URL para el dron",
-      value: info.rtmp_url_template.replace("{serial}", "SERIAL_DRON"),
-      key: "rtmp",
-      hint: "Reemplazar SERIAL_DRON por el número de serie del dron registrado",
-    },
-    {
-      label: "HLS — reproductor web",
-      value: info.hls_url_template.replace("{serial}", "SERIAL_DRON"),
-      key: "hls",
-    },
-    {
-      label: "RTSP — AI worker / VLC",
-      value: info.rtsp_url_template.replace("{serial}", "SERIAL_DRON"),
-      key: "rtsp",
-      hint: "VLC: activar RTP sobre RTSP (TCP) en Preferencias → Entrada/Codecs",
-    },
-  ];
-
-  return (
-    <section>
-      <h2 className="mb-3 text-sm font-semibold text-gray-700">Configuración de red — drones</h2>
-      <div className="overflow-hidden rounded-lg border border-gray-200 bg-white divide-y divide-gray-100">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-start justify-between gap-4 px-4 py-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium text-gray-500">{row.label}</p>
-              <p className="mt-0.5 font-mono text-sm text-gray-900 break-all">{row.value}</p>
-              {row.hint && <p className="mt-0.5 text-[10px] text-gray-400">{row.hint}</p>}
-            </div>
-            <button
-              onClick={() => copy(row.value, row.key)}
-              className="shrink-0 rounded bg-gray-100 px-2.5 py-1 text-[10px] font-medium text-gray-600 hover:bg-gray-200 transition-colors"
-            >
-              {copied === row.key ? "Copiado ✓" : "Copiar"}
-            </button>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 // ── Sección: Misiones activas ─────────────────────────────────────────────────
 
@@ -182,21 +120,18 @@ function DroneFleet({ drones }: { drones: Drone[] }) {
 // ── Página principal ──────────────────────────────────────────────────────────
 
 export default function AdminPage() {
-  const [missions,    setMissions]    = useState<Mission[]>([]);
-  const [drones,      setDrones]      = useState<Drone[]>([]);
-  const [networkInfo, setNetworkInfo] = useState<NetworkInfo | null>(null);
-  const [loadError,   setLoadError]   = useState(false);
+  const [missions,  setMissions]  = useState<Mission[]>([]);
+  const [drones,    setDrones]    = useState<Drone[]>([]);
+  const [loadError, setLoadError] = useState(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [m, d, n] = await Promise.all([
+      const [m, d] = await Promise.all([
         missionsApi.list(),
         dronesApi.list(),
-        systemApi.getNetworkInfo(),
       ]);
       setMissions(m);
       setDrones(d);
-      setNetworkInfo(n);
     } catch {
       setLoadError(true);
     }
@@ -244,38 +179,20 @@ export default function AdminPage() {
         {/* Links a herramientas admin */}
         <section>
           <h2 className="mb-3 text-sm font-semibold text-gray-700">Herramientas</h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Link
-              href="/dashboard/config"
+              href="/dashboard/admin/pending-review"
               className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors shadow-sm"
             >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-violet-600 fill-none" strokeWidth={1.8}>
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100">
+                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-amber-600 fill-none" strokeWidth={1.8}>
+                  <path d="M9 11l3 3L22 4"/>
+                  <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
                 </svg>
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-slate-800">Configuración</p>
-                <p className="text-[11px] text-slate-500">Parámetros del sistema, umbrales IA</p>
-              </div>
-            </Link>
-
-            <Link
-              href="/dashboard/logs"
-              className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4 hover:bg-slate-50 transition-colors shadow-sm"
-            >
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100">
-                <svg viewBox="0 0 24 24" className="h-5 w-5 stroke-blue-600 fill-none" strokeWidth={1.8}>
-                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                  <polyline points="14 2 14 8 20 8"/>
-                  <line x1="16" y1="13" x2="8" y2="13"/>
-                  <line x1="16" y1="17" x2="8" y2="17"/>
-                </svg>
-              </div>
-              <div>
-                <p className="text-[13px] font-semibold text-slate-800">Auditoría</p>
-                <p className="text-[11px] text-slate-500">Log de cambios en la base de datos</p>
+                <p className="text-[13px] font-semibold text-slate-800">Revisión pendiente</p>
+                <p className="text-[11px] text-slate-500">Detecciones sin confirmar</p>
               </div>
             </Link>
 
@@ -290,14 +207,13 @@ export default function AdminPage() {
                 </svg>
               </div>
               <div>
-                <p className="text-[13px] font-semibold text-slate-800">Usuarios</p>
-                <p className="text-[11px] text-slate-500">Gestión de cuentas y roles</p>
+                <p className="text-[13px] font-semibold text-slate-800">Personal de campo</p>
+                <p className="text-[11px] text-slate-500">Gestión de buscadores y ayudantes</p>
               </div>
             </Link>
           </div>
         </section>
 
-        {networkInfo && <NetworkInfoSection info={networkInfo} />}
         <ActiveMissions missions={activeMissions} />
         <DroneFleet drones={drones} />
       </div>

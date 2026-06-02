@@ -14,7 +14,7 @@ Este spec cubre tres subsistemas nuevos que se integran al sistema existente:
 2. **Field Reports** — flujo de reporte de campo rescatista → admin → IA → resultado
 3. **PWA rescatista** — interfaz mobile-optimized sin APK nativo
 
-No cubre: DJI SDK (se usa DJI Fly oficial), streaming continuo desde celular, control granular por dron (documentado como Opción A para expansión futura).
+No cubre: SDKs específicos (p. ej. DJI Fly), streaming continuo desde celular ni control granular por dron (documentado como Opción A para expansión futura).
 
 ---
 
@@ -26,7 +26,7 @@ No cubre: DJI SDK (se usa DJI Fly oficial), streaming continuo desde celular, co
 | Controles reconocimiento | Nivel misión (un toggle para todos los drones) | Por dron (Opción A — ver sección 9) |
 | Análisis rescatista | Fotos (3-5) + FaceNet promediado | Video streaming |
 | App móvil | PWA Next.js | APK nativo Kotlin |
-| DJI integración | DJI Fly oficial + RTMP custom | DJI Mobile SDK v5 |
+| Integración SDK | DJI Fly u otros clientes RTMP | DJI Mobile SDK v5 (u otros SDK que expongan RTMP) |
 | Auto-discovery drones | MediaMTX webhook + polling fallback | Solo registro manual |
 
 ---

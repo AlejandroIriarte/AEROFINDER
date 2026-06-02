@@ -7,7 +7,7 @@
 #   redis         — Redis 7 Streams (telemetría GPS y notificaciones)
 #   minio         — Almacenamiento S3-compatible (snapshots, fotos, videos)
 #   minio-init    — Crea los buckets en el primer arranque (one-shot)
-#   mediamtx      — Servidor RTMP/HLS/RTSP para streams de drones (DJI u otras marcas)
+#   mediamtx      — Servidor RTMP/HLS/RTSP para streams de drones DJI
 #   backend       — API FastAPI + WebSockets
 #   ai-worker     — Worker YOLO + InsightFace (requiere GPU NVIDIA)
 #   frontend      — Next.js 14 App Router
@@ -137,7 +137,7 @@ services:
     networks:
       - aerofinder_net
     ports:
-      - "1935:1935"   # RTMP: la app Android o la app del piloto conecta aquí (RTMP)
+      - "1935:1935"   # RTMP: la app Android DJI conecta aquí
       - "8554:8554"   # RTSP: VLC y clientes externos pueden leer el stream
       - "8888:8888"   # HLS: el frontend accede aquí para reproducir video
       # - "9997:9997" # API MediaMTX: interno (backend)
