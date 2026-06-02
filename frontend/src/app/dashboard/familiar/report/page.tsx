@@ -79,6 +79,7 @@ export default function FamiliarReportPage() {
   const [toastMessage, setToastMessage] = useState("");
   const [toastType,    setToastType]    = useState<"success" | "error">("success");
   const [showToast,    setShowToast]    = useState(false);
+  const [confirmedNoFace, setConfirmedNoFace] = useState(false);
 
   // Limpiar object URLs al desmontar el componente
   useEffect(() => {
@@ -105,6 +106,7 @@ export default function FamiliarReportPage() {
   // Analizar fotos nuevas automáticamente al cambiar la lista
   const handlePhotosChange = useCallback(async (newPhotos: SelectedPhoto[]) => {
     setPhotos(newPhotos);
+    setConfirmedNoFace(false);
 
     // Detectar fotos pending sin análisis previo (undefined = nunca analizada)
     const newIndexes = newPhotos
@@ -185,6 +187,15 @@ export default function FamiliarReportPage() {
     if (!formData.full_name.trim())        e.full_name      = "El nombre es obligatorio";
     else if (formData.full_name.length < 3) e.full_name     = "Mínimo 3 caracteres";
     if (!formData.disappeared_at)           e.disappeared_at = "La fecha de desaparición es obligatoria";
+    // Bloquear si hay fotos analizadas pero ninguna con cara, y no confirmó
+    const allAnalyzed =
+      photos.length > 0 &&
+      analyzingIndexes.length === 0 &&
+      photoAnalyses.some((a) => a !== null);
+    const noneUseful = allAnalyzed && !photoAnalyses.some((a) => a?.quality.is_useful);
+    if (noneUseful && !confirmedNoFace) {
+      e.photos_no_face = "Confirmá que querés continuar sin foto con cara visible";
+    }
     setErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -363,8 +374,22 @@ export default function FamiliarReportPage() {
                   <p className="mt-0.5 text-[11px] text-amber-700 leading-relaxed">
                     Las fotos subidas no son útiles para el reconocimiento por IA (foto borrosa, oscura, muy pequeña, o sin cara visible). Podés enviar el reporte igual, pero te recomendamos agregar una foto clara de la cara de la persona para mejorar las chances de identificación.
                   </p>
+                  <label className="mt-2 flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={confirmedNoFace}
+                      onChange={(e) => setConfirmedNoFace(e.target.checked)}
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-amber-400 text-amber-600 focus:ring-amber-500"
+                    />
+                    <span className="text-[11px] text-amber-800 leading-relaxed">
+                      Entiendo y quiero enviar el reporte sin foto con cara visible
+                    </span>
+                  </label>
                 </div>
               </div>
+            )}
+            {errors.photos_no_face && (
+              <p className="mt-2 text-[11px] text-red-600">{errors.photos_no_face}</p>
             )}
           </div>
 
