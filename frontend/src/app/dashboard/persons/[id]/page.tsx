@@ -98,9 +98,33 @@ function PhotosSection({ personId, photos, role, onPhotoUpdated }: PhotosSection
   const [uploading, setUploading]   = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedAngle, setSelectedAngle] = useState<PhotoFaceAngle>("frontal");
+  const [faceWarning, setFaceWarning] = useState<File | null>(null);
+  const [analyzing,   setAnalyzing]   = useState(false);
 
   const canUpload  = role === "familiar" || role === "admin" || role === "buscador";
   const canApprove = role === "admin" || role === "ayudante";
+
+  async function _uploadFile(
+    file: File,
+    pId: string,
+    angle: PhotoFaceAngle,
+    onUpdated: () => void,
+    setError: (msg: string | null) => void,
+  ) {
+    try {
+      const { upload_url, photo_id } = await photosApi.requestUploadUrl(pId, angle);
+      const res = await fetch(upload_url, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type },
+      });
+      if (!res.ok) throw new Error("Error al subir la imagen");
+      await photosApi.confirm(pId, photo_id);
+      onUpdated();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error desconocido");
+    }
+  }
 
   async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -108,24 +132,23 @@ function PhotosSection({ personId, photos, role, onPhotoUpdated }: PhotosSection
 
     setUploading(true);
     setUploadError(null);
+    setAnalyzing(true);
 
     try {
-      // Paso 1: solicitar URL firmada
-      const { upload_url, photo_id } = await photosApi.requestUploadUrl(personId, selectedAngle);
+      const analysis = await photosApi.analyzePhoto(file);
+      setAnalyzing(false);
 
-      // Paso 2: subir directo a MinIO
-      const res = await fetch(upload_url, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type },
-      });
-      if (!res.ok) throw new Error("Error al subir la imagen");
+      if (!analysis.quality.face_detected) {
+        setFaceWarning(file);
+        setUploading(false);
+        e.target.value = "";
+        return;
+      }
 
-      // Paso 3: confirmar en el backend
-      await photosApi.confirm(personId, photo_id);
-      onPhotoUpdated();
-    } catch (err) {
-      setUploadError(err instanceof Error ? err.message : "Error desconocido");
+      await _uploadFile(file, personId, selectedAngle, onPhotoUpdated, setUploadError);
+    } catch {
+      setAnalyzing(false);
+      setUploadError("Error al analizar la foto. Intenta de nuevo.");
     } finally {
       setUploading(false);
       e.target.value = "";
@@ -162,13 +185,13 @@ function PhotosSection({ personId, photos, role, onPhotoUpdated }: PhotosSection
                 <option key={angle} value={angle}>{FACE_ANGLE_LABEL[angle]}</option>
               ))}
             </select>
-            <label className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${uploading ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}`}>
-              {uploading ? "Subiendo…" : "+ Subir foto"}
+            <label className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold text-white transition ${uploading || analyzing ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"}`}>
+              {analyzing ? "Analizando…" : uploading ? "Subiendo…" : "+ Subir foto"}
               <input
                 type="file"
                 accept="image/jpeg,image/png,image/webp"
                 className="hidden"
-                disabled={uploading}
+                disabled={uploading || analyzing}
                 onChange={handleFileChange}
               />
             </label>
@@ -178,6 +201,47 @@ function PhotosSection({ personId, photos, role, onPhotoUpdated }: PhotosSection
 
       {uploadError && (
         <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{uploadError}</p>
+      )}
+
+      {/* Modal advertencia cara no detectada */}
+      {faceWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-xl bg-white p-6 shadow-xl">
+            <div className="mb-4 flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+                <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-900">No se detectó ningún rostro</p>
+                <p className="mt-1 text-xs text-gray-500">
+                  Esta foto no es útil para el reconocimiento por IA. Podés cancelar y elegir otra, o subir igual si creés que la foto es válida.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setFaceWarning(null)}
+                className="flex-1 rounded-lg border border-gray-300 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  const file = faceWarning;
+                  setFaceWarning(null);
+                  setUploading(true);
+                  await _uploadFile(file, personId, selectedAngle, onPhotoUpdated, setUploadError);
+                  setUploading(false);
+                }}
+                className="flex-1 rounded-lg bg-amber-500 py-2 text-sm font-semibold text-white hover:bg-amber-600"
+              >
+                Subir igual
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {role === "familiar" && (
