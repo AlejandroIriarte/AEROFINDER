@@ -9,9 +9,6 @@ import re
 from dataclasses import dataclass
 from typing import Optional
 
-import cv2
-import numpy as np
-
 logger = logging.getLogger(__name__)
 
 
@@ -56,6 +53,9 @@ class OcrService:
         Detecta automáticamente si es CI boliviana o pasaporte.
         """
         try:
+            import cv2  # import lazy — paddleocr trae opencv-python (con libGL)
+            import numpy as np  # noqa: PLC0415
+
             reader = self._get_reader()
             nparr = np.frombuffer(image_bytes, np.uint8)
             img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
