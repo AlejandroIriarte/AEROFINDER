@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useWebSocket } from "@/lib/websocket";
 import { AlertCard } from "@/components/alerts/AlertCard";
-import { missionsApi, personsApi } from "@/lib/api";
+import { alertsApi, missionsApi, personsApi } from "@/lib/api";
 import type { DetectionWSMessage } from "@/components/map/DetectionMarker";
-import type { Mission } from "@/lib/types";
+import type { Alert, Mission } from "@/lib/types";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 
@@ -205,6 +205,8 @@ export default function NotificationsPage() {
   const [hasPerson,      setHasPerson]      = useState(false);
   const [personName,     setPersonName]     = useState<string | undefined>(undefined);
   const [alerts,         setAlerts]         = useState<DetectionWSMessage[]>([]);
+  const [systemAlerts,   setSystemAlerts]   = useState<Alert[]>([]);
+  const [missionEnded,   setMissionEnded]   = useState(false);
   const [loadingMission, setLoadingMission] = useState(true);
 
   // Protección client-side: solo familiar
@@ -222,13 +224,21 @@ export default function NotificationsPage() {
     Promise.all([
       missionsApi.list().catch(() => [] as Mission[]),
       personsApi.list().catch(() => []),
-    ]).then(([missions, persons]) => {
+      alertsApi.list().catch(() => [] as Alert[]),
+    ]).then(([missions, persons, allAlerts]) => {
       if (cancelled) return;
-      const active = missions.find((m) => m.status === "active") ?? missions[0] ?? null;
+      // Preferir misión activa; si no, la más reciente (puede estar completada)
+      const active = missions.find((m) => m.status === "active")
+        ?? missions.find((m) => m.status === "completed")
+        ?? missions[0]
+        ?? null;
       setMission(active ?? null);
       setMissionId(active?.id ?? null);
+      if (active && active.status !== "active") setMissionEnded(true);
       setHasPerson(persons.length > 0);
       if (persons.length > 0) setPersonName(persons[0].full_name);
+      // Alertas de sistema (sin detection_id) = notificaciones de cierre de misión
+      setSystemAlerts(allAlerts.filter((a) => !a.detection_id && a.message_text));
     }).finally(() => { if (!cancelled) setLoadingMission(false); });
 
     return () => { cancelled = true; };
@@ -239,7 +249,8 @@ export default function NotificationsPage() {
   const wsUrl  = missionId ? `${wsBase}/ws/missions/${missionId}` : null;
 
   const handleWsMessage = useCallback((raw: unknown) => {
-    const msg = raw as { type: string } & DetectionWSMessage;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const msg = raw as any;
     if (
       (msg.type === "alert" || msg.type === "detection") &&
       msg.detection_type === "face_match"
@@ -252,6 +263,11 @@ export default function NotificationsPage() {
         if (prev.some((a) => a.detection_id === msg.detection_id)) return prev;
         return [safeMsg, ...prev].slice(0, 50);
       });
+    }
+    // Misión completada vía WS
+    if (msg.type === "mission_update" && (msg.status === "completed" || msg.status === "cancelled" || msg.status === "interrupted")) {
+      setMissionEnded(true);
+      setMission((prev) => prev ? { ...prev, status: msg.status! } : prev);
     }
   }, []);
 
@@ -299,16 +315,55 @@ export default function NotificationsPage() {
         <CasePendingMissionState personName={personName} />
       ) : !mission ? (
         <NoMissionEmptyState />
-      ) : alerts.length === 0 ? (
-        <SearchingEmptyState missionName={mission.name} />
       ) : (
-        <div className="space-y-3">
-          <p className="text-[11px] text-slate-400">
-            {alerts.length} {alerts.length === 1 ? "coincidencia detectada" : "coincidencias detectadas"}
-          </p>
-          {alerts.map((alert) => (
-            <AlertCard key={alert.detection_id} alert={alert} userRole="familiar" />
+        <div className="space-y-4">
+          {/* Banner: misión finalizada */}
+          {missionEnded && (
+            <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-200">
+                <svg className="h-5 w-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-[13px] font-semibold text-slate-800">Misión finalizada</p>
+                <p className="mt-0.5 text-[12px] text-slate-500">
+                  La búsqueda <span className="font-medium">{mission.name}</span> ha concluido.
+                  El equipo evaluará los resultados y te contactará con novedades.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Alertas de sistema (cierre de misión, etc.) */}
+          {systemAlerts.map((a) => (
+            <div key={a.id} className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4">
+              <svg className="mt-0.5 h-5 w-5 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <p className="text-[12px] font-semibold text-blue-800">Notificación del sistema</p>
+                <p className="mt-0.5 text-[12px] text-blue-700">{a.message_text}</p>
+                <p className="mt-1 text-[10px] text-blue-400">
+                  {new Date(a.generated_at).toLocaleString("es-BO", { dateStyle: "medium", timeStyle: "short" })}
+                </p>
+              </div>
+            </div>
           ))}
+
+          {/* Alertas de detección (face_match) */}
+          {alerts.length === 0 && !missionEnded ? (
+            <SearchingEmptyState missionName={mission.name} />
+          ) : alerts.length > 0 ? (
+            <>
+              <p className="text-[11px] text-slate-400">
+                {alerts.length} {alerts.length === 1 ? "coincidencia detectada" : "coincidencias detectadas"}
+              </p>
+              {alerts.map((alert) => (
+                <AlertCard key={alert.detection_id} alert={alert} userRole="familiar" />
+              ))}
+            </>
+          ) : null}
         </div>
       )}
     </div>

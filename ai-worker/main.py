@@ -310,7 +310,7 @@ async def process_stream(
                                     detection_type = "face_candidate"
 
                                 try:
-                                    ok, buf = cv2.imencode(".jpg", frame)
+                                    ok, buf = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
                                     if ok:
                                         snapshot_b64 = base64.b64encode(
                                             buf.tobytes()

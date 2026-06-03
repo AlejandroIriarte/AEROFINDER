@@ -36,6 +36,23 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
 )
 
+# ── Motor worker (rolbypassrls=true) — solo para INSERTs de alertas ───────────
+# Usa aerofinder_worker cuando WORKER_DATABASE_URL está configurada;
+# cae al engine principal en entornos de desarrollo sin la variable.
+_worker_url = settings.worker_database_url or settings.database_url
+worker_engine = create_async_engine(
+    _worker_url,
+    echo=False,
+    pool_pre_ping=True,
+    pool_size=3,
+    max_overflow=5,
+)
+AsyncWorkerSessionLocal = async_sessionmaker(
+    bind=worker_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
+
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """

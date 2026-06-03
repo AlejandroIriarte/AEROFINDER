@@ -29,6 +29,7 @@ interface Props {
   hlsUrl: string | null;
   latestDetections?: DetectionBox[];
   onCapture?: (droneId: string, imageB64: string, detections: DetectionBox[]) => Promise<void>;
+  isPaused?: boolean;
 }
 
 export function DroneStreamCard({
@@ -42,6 +43,7 @@ export function DroneStreamCard({
   hlsUrl,
   latestDetections = [],
   onCapture,
+  isPaused = false,
 }: Props) {
   const playerRef = useRef<{ captureFrame: () => HTMLVideoElement | null }>(null);
   const [capturing, setCapturing] = useState(false);
@@ -85,7 +87,7 @@ export function DroneStreamCard({
     <div className="flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-gray-900 shadow-sm">
       {/* Video */}
       <div className="relative aspect-video w-full bg-gray-900">
-        {hlsUrl && <HlsPlayer ref={playerRef} url={hlsUrl} />}
+        {hlsUrl && <HlsPlayer ref={playerRef} url={hlsUrl} isPaused={isPaused} />}
 
         {/* Badge en vivo */}
         {streamReady && (
@@ -205,8 +207,8 @@ import React from "react";
 
 const HlsPlayer = React.forwardRef<
   { captureFrame: () => HTMLVideoElement | null },
-  { url: string }
->(function HlsPlayer({ url }, ref) {
+  { url: string; isPaused?: boolean }
+>(function HlsPlayer({ url, isPaused = false }, ref) {
   const videoRef    = useRef<HTMLVideoElement>(null);
   const hlsRef      = useRef<Hls | null>(null);
   const retryRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -298,6 +300,25 @@ const HlsPlayer = React.forwardRef<
     start();
     return cleanup;
   }, [url]);
+
+  // Pausa / reanuda el video; al reanudar salta al borde en vivo del stream
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || state !== "playing") return;
+    if (isPaused) {
+      video.pause();
+    } else {
+      // Saltar al borde en vivo antes de reproducir
+      const livePos = hlsRef.current?.liveSyncPosition ?? null;
+      if (livePos !== null) {
+        video.currentTime = livePos;
+      } else if (video.seekable.length > 0) {
+        video.currentTime = video.seekable.end(0);
+      }
+      video.play().catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused]);
 
   const handleFullscreen = useCallback(() => {
     const el = videoRef.current;

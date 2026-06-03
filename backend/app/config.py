@@ -17,6 +17,8 @@ class Settings(BaseSettings):
 
     # ── Base de datos ────────────────────────────────────────────────────────
     database_url: str
+    # URL con aerofinder_worker (rolbypassrls=true) — usada solo para INSERTs de alertas
+    worker_database_url: str | None = None
 
     # ── Redis ────────────────────────────────────────────────────────────────
     redis_url: str = "redis://redis:6379"

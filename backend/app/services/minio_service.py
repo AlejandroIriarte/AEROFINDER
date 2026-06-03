@@ -64,10 +64,11 @@ class MinioService:
             raise
 
     def build_public_url(self, bucket: str, object_key: str) -> str:
-        """Construye la URL pública directa al objeto en MinIO."""
+        """Construye la URL pública directa al objeto en MinIO (usa server_host)."""
         parsed = urlparse(settings.minio_url)
+        port = parsed.port or 9000
         scheme = "https" if settings.minio_secure else "http"
-        return f"{scheme}://{parsed.netloc}/{bucket}/{object_key}"
+        return f"{scheme}://{settings.server_host}:{port}/{bucket}/{object_key}"
 
     def upload_file(
         self,

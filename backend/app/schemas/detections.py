@@ -36,6 +36,9 @@ class DetectionResponse(BaseModel):
     snapshot_url: Optional[str]           # URL firmada de MinIO; None si sin snapshot
     is_reviewed: bool
     created_at: datetime
+    # Estado de la alerta asociada (confirmed/dismissed/generated/sent); None si sin alerta
+    alert_status: Optional[str] = None
+    detection_type: Optional[str] = None
 
     model_config = {"from_attributes": True}
 

@@ -18,9 +18,12 @@ from shapely.geometry import mapping
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from sqlalchemy import func
+
 from app.core.deps import CurrentUser, get_current_user, require_role
-from app.db.session import get_db
-from app.models.enums import RoleName
+from app.core.ws_manager import ws_manager
+from app.db.session import AsyncWorkerSessionLocal, get_db
+from app.models.enums import AlertContentLevel, AlertStatus, RoleName
 from app.models.missions import (
     Mission,
     MissionCoverageZone,
@@ -214,6 +217,7 @@ async def update_mission(
     if mission is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Misión no encontrada")
 
+    prev_status = mission.status
     update_data = body.model_dump(exclude_none=True)
     search_area_raw = update_data.pop("search_area", None)
 
@@ -232,7 +236,77 @@ async def update_mission(
                 detail="search_area debe ser un GeoJSON Polygon válido",
             )
 
-    return _mission_to_response(mission)
+    response = _mission_to_response(mission)
+
+    # Al completar la misión: notificar a los familiares y broadcast WS
+    new_status = update_data.get("status")
+    if new_status == "completed" and prev_status != "completed":
+        import asyncio as _asyncio
+        _asyncio.ensure_future(_notify_mission_completed(mission))
+
+    return response
+
+
+async def _notify_mission_completed(mission: Mission) -> None:
+    """
+    Crea alertas de finalización para los familiares de la persona buscada
+    y emite un WS mission_update al canal de la misión.
+    Usa AsyncWorkerSessionLocal (rolbypassrls=true) para el INSERT en alerts.
+    """
+    from app.models.persons import MissingPerson, PersonRelative
+    from app.models.pipeline import Alert
+
+    try:
+        # Obtener nombre de la persona y lista de familiares
+        async with AsyncWorkerSessionLocal() as session:
+            person_row = await session.execute(
+                select(MissingPerson.full_name).where(MissingPerson.id == mission.missing_person_id)
+            )
+            person_name = person_row.scalar_one_or_none() or "la persona buscada"
+
+            rel_rows = await session.execute(
+                select(PersonRelative.user_id).where(
+                    PersonRelative.missing_person_id == mission.missing_person_id
+                )
+            )
+            familiar_ids = [r for (r,) in rel_rows.all()]
+
+        if not familiar_ids:
+            logger.info("Misión completada sin familiares vinculados: mission=%s", mission.id)
+        else:
+            msg = (
+                f"La misión '{mission.name}' ha finalizado. "
+                f"Búsqueda de {person_name} completada."
+            )
+            async with AsyncWorkerSessionLocal() as session:
+                async with session.begin():
+                    for fam_id in familiar_ids:
+                        session.add(Alert(
+                            id=uuid.uuid4(),
+                            detection_id=None,          # alerta de sistema, no de detección
+                            recipient_user_id=fam_id,
+                            content_level=AlertContentLevel.confirmation_only,
+                            status=AlertStatus.generated,
+                            message_text=msg,
+                        ))
+            logger.info(
+                "Alertas de finalización creadas: mission=%s familiares=%d",
+                mission.id, len(familiar_ids),
+            )
+
+        # Broadcast WS a la sala de la misión
+        await ws_manager.broadcast(
+            f"mission:{mission.id}",
+            {"type": "mission_update", "mission_id": str(mission.id), "status": "completed"},
+        )
+        # Broadcast al canal de alertas globales
+        await ws_manager.broadcast(
+            "alerts",
+            {"type": "mission_completed", "mission_id": str(mission.id), "mission_name": mission.name},
+        )
+
+    except Exception:
+        logger.error("Error al notificar finalización de misión=%s", mission.id, exc_info=True)
 
 
 # ── Reconocimiento facial ─────────────────────────────────────────────────────
@@ -676,4 +750,118 @@ async def capture_manual_snapshot(
     return ManualSnapshotResponse(
         detection_id=str(detection_id),
         snapshot_url=snapshot_url,
+    )
+
+
+# ── Resumen de misión completada ──────────────────────────────────────────────
+
+class MissionSummaryResponse(BaseModel):
+    mission_id: uuid.UUID
+    mission_name: str
+    status: str
+    missing_person_id: Optional[uuid.UUID]
+    person_full_name: Optional[str]
+    person_status: Optional[str]
+    started_at: Optional[datetime]
+    completed_at: Optional[datetime]
+    duration_minutes: Optional[int]
+    total_detections: int
+    face_matches: int
+    confirmed_alerts: int
+    dismissed_alerts: int
+    drones_used: int
+
+
+@router.get("/{mission_id}/summary", response_model=MissionSummaryResponse)
+async def get_mission_summary(
+    mission_id: uuid.UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MissionSummaryResponse:
+    """Estadísticas de cierre de una misión (cualquier estado)."""
+    from app.models.enums import AlertStatus
+    from app.models.persons import MissingPerson
+    from app.models.pipeline import Alert, Detection
+
+    try:
+        result = await db.execute(select(Mission).where(Mission.id == mission_id))
+        mission: Mission | None = result.scalar_one_or_none()
+    except Exception:
+        logger.error("Error al buscar misión id=%s", mission_id, exc_info=True)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
+
+    if mission is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Misión no encontrada")
+
+    # Nombre y estado de la persona
+    person_name: Optional[str] = None
+    person_status: Optional[str] = None
+    try:
+        pr = await db.execute(
+            select(MissingPerson.full_name, MissingPerson.status)
+            .where(MissingPerson.id == mission.missing_person_id)
+        )
+        row = pr.first()
+        if row:
+            person_name = row[0]
+            person_status = row[1].value if hasattr(row[1], "value") else str(row[1])
+    except Exception:
+        pass
+
+    # Conteos
+    total_det = (await db.execute(
+        select(func.count()).select_from(Detection).where(Detection.mission_id == mission_id)
+    )).scalar_one()
+
+    face_matches = (await db.execute(
+        select(func.count()).select_from(Detection).where(
+            Detection.mission_id == mission_id,
+            Detection.facenet_similarity >= 0.55,
+        )
+    )).scalar_one()
+
+    confirmed = (await db.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.status == AlertStatus.confirmed,
+            Alert.detection_id.in_(
+                select(Detection.id).where(Detection.mission_id == mission_id)
+            ),
+        )
+    )).scalar_one()
+
+    dismissed = (await db.execute(
+        select(func.count()).select_from(Alert).where(
+            Alert.status == AlertStatus.dismissed,
+            Alert.detection_id.in_(
+                select(Detection.id).where(Detection.mission_id == mission_id)
+            ),
+        )
+    )).scalar_one()
+
+    drones = (await db.execute(
+        select(func.count(func.distinct(MissionDrone.drone_id))).where(
+            MissionDrone.mission_id == mission_id
+        )
+    )).scalar_one()
+
+    duration: Optional[int] = None
+    if mission.started_at and mission.completed_at:
+        delta = mission.completed_at - mission.started_at
+        duration = int(delta.total_seconds() / 60)
+
+    return MissionSummaryResponse(
+        mission_id=mission.id,
+        mission_name=mission.name,
+        status=mission.status.value if hasattr(mission.status, "value") else str(mission.status),
+        missing_person_id=mission.missing_person_id,
+        person_full_name=person_name,
+        person_status=person_status,
+        started_at=mission.started_at,
+        completed_at=mission.completed_at,
+        duration_minutes=duration,
+        total_detections=total_det,
+        face_matches=face_matches,
+        confirmed_alerts=confirmed,
+        dismissed_alerts=dismissed,
+        drones_used=drones,
     )

@@ -28,10 +28,11 @@ RUN python -m venv /venv \
 # ── Etapa 2: imagen final de runtime ─────────────────────────────────────────
 FROM python:3.12-slim AS runtime
 
-# Dependencias de runtime (solo libpq, sin compiladores)
+# Dependencias de runtime (libpq + libgomp para PaddlePaddle)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq5 \
     curl \
+    libgomp1 \
  && rm -rf /var/lib/apt/lists/*
 
 # Usuario sin privilegios para ejecutar la aplicación

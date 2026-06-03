@@ -188,6 +188,8 @@ export interface Detection {
   snapshot_url: string | null;
   is_reviewed: boolean;
   created_at: string;
+  alert_status: string | null;
+  detection_type: string | null;
 }
 
 export interface DetectionReview {
@@ -203,12 +205,20 @@ export interface Alert {
   id: string;
   detection_id: string;
   recipient_user_id: string | null;
-  mission_id: string | null;          // opcional — el backend aún no lo expone, pero lo soportamos
+  mission_id: string | null;
   content_level: AlertContentLevel;
   status: AlertStatus;
   message_text: string | null;
   generated_at: string;
   updated_at: string;
+  // Datos enriquecidos de la detección (join en backend)
+  detection_type: string | null;
+  yolo_confidence: number | null;
+  facenet_similarity: number | null;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  snapshot_url: string | null;
+  person_full_name: string | null;
 }
 
 export interface TelemetryPoint {
@@ -485,4 +495,21 @@ export interface OcrDocumentResult {
   gender:          string | null;   // "M" | "F"
   document_number: string | null;
   address:         string | null;
+}
+
+export interface MissionSummary {
+  mission_id: string;
+  mission_name: string;
+  status: string;
+  missing_person_id: string | null;
+  person_full_name: string | null;
+  person_status: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_minutes: number | null;
+  total_detections: number;
+  face_matches: number;
+  confirmed_alerts: number;
+  dismissed_alerts: number;
+  drones_used: number;
 }

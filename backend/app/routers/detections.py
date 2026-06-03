@@ -10,14 +10,14 @@ import uuid
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.deps import CurrentUser, get_current_user, require_role
 from app.db.session import get_db
 from app.models.enums import RoleName
 from app.models.files import File
-from app.models.pipeline import Detection, DetectionReview
+from app.models.pipeline import Alert, Detection, DetectionReview
 from app.schemas.detections import DetectionResponse, ReviewCreate, ReviewResponse
 from app.services.minio_service import minio_service
 
@@ -31,7 +31,7 @@ _reviewers = require_role(RoleName.super_admin, RoleName.admin, RoleName.buscado
 _GPS_ROLES = {RoleName.admin, RoleName.buscador}
 
 
-def _mask_gps(det: Detection, role: RoleName, snapshot_url: Optional[str]) -> DetectionResponse:
+def _mask_gps(det: Detection, role: RoleName, snapshot_url: Optional[str], alert_status: Optional[str] = None) -> DetectionResponse:
     """
     Construye el schema de respuesta aplicando el filtro de GPS por rol.
     ayudante y familiar: gps_latitude y gps_longitude se retornan como None.
@@ -57,6 +57,8 @@ def _mask_gps(det: Detection, role: RoleName, snapshot_url: Optional[str]) -> De
         snapshot_url=snapshot_url,
         is_reviewed=det.is_reviewed,
         created_at=det.created_at,
+        alert_status=alert_status,
+        detection_type=det.detection_type,
     )
 
 
@@ -105,7 +107,36 @@ async def list_detections(
     GPS visible solo para admin y buscador.
     """
     try:
-        query = select(Detection)
+        # Subquery: estado de alerta más relevante por detección
+        # Prioridad: confirmed > dismissed > sent > generated
+        _priority = case(
+            (Alert.status == "confirmed", "3"),
+            (Alert.status == "dismissed", "2"),
+            (Alert.status == "sent",      "1"),
+            else_="0",
+        )
+        alert_sub = (
+            select(
+                Alert.detection_id,
+                func.max(_priority).label("best_priority"),
+                func.max(
+                    case(
+                        (Alert.status == "confirmed", "confirmed"),
+                        (Alert.status == "dismissed", "dismissed"),
+                        (Alert.status == "sent",      "sent"),
+                        else_="generated",
+                    )
+                ).label("alert_status"),
+            )
+            .where(Alert.detection_id.isnot(None))
+            .group_by(Alert.detection_id)
+            .subquery()
+        )
+
+        query = (
+            select(Detection, alert_sub.c.alert_status)
+            .outerjoin(alert_sub, Detection.id == alert_sub.c.detection_id)
+        )
         if mission_id is not None:
             query = query.where(Detection.mission_id == mission_id)
         if missing_person_id is not None:
@@ -115,7 +146,9 @@ async def list_detections(
 
         query = query.order_by(Detection.created_at.desc()).offset(skip).limit(limit)
         result = await db.execute(query)
-        detections = result.scalars().all()
+        rows = result.all()
+        detections = [r[0] for r in rows]
+        alert_statuses = [r[1] for r in rows]
     except Exception:
         logger.error("Error al listar detecciones", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Error interno")
@@ -126,8 +159,8 @@ async def list_detections(
     )
 
     return [
-        _mask_gps(d, current_user.role, url)
-        for d, url in zip(detections, snapshot_urls)
+        _mask_gps(d, current_user.role, url, alert_status=ast)
+        for d, url, ast in zip(detections, snapshot_urls, alert_statuses)
     ]
 
 

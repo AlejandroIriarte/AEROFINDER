@@ -41,6 +41,7 @@ import type {
   OcrDocumentResult,
   SoftDeletedUser,
   StreamInfo,
+  MissionSummary,
 } from "@/lib/types";
 
 // Nombre de la cookie donde se guarda el refresh token
@@ -257,6 +258,11 @@ export const missionsApi = {
       person_detection: personDetection,
       face_recognition: faceRecognition,
     });
+    return data;
+  },
+
+  async getSummary(id: string): Promise<MissionSummary> {
+    const { data } = await api.get<MissionSummary>(`/missions/${id}/summary`);
     return data;
   },
 

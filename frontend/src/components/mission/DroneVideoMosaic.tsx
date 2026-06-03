@@ -29,6 +29,7 @@ interface Props {
   onMissionUpdate: (m: Mission) => void;
   // Detecciones recientes por drone_id — para mostrar recuadros en vivo
   latestDetections?: Record<string, DetectionBox[]>;
+  isPaused?: boolean;
 }
 
 export function DroneVideoMosaic({
@@ -38,6 +39,7 @@ export function DroneVideoMosaic({
   canManage,
   onMissionUpdate,
   latestDetections = {},
+  isPaused = false,
 }: Props) {
   const [streams, setStreams] = useState<StreamInfo[]>(initialStreams);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -118,6 +120,7 @@ export function DroneVideoMosaic({
             canManage={canManage}
             latestDetections={latestDetections[drone.id] ?? []}
             onCapture={canManage ? handleCapture : undefined}
+            isPaused={isPaused}
           />
         );
       })}

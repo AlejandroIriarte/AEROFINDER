@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import BigInteger, Boolean, DateTime, Double, Float, ForeignKey, SmallInteger, Text, text
+from sqlalchemy import BigInteger, Boolean, DateTime, Double, Float, ForeignKey, SmallInteger, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from geoalchemy2 import Geometry
@@ -69,6 +69,8 @@ class Detection(Base, UUIDPrimaryKeyMixin, CreatedAtMixin):
         ForeignKey("ai_models.id", ondelete="RESTRICT"),
         nullable=False,
     )
+    # Tipo de detección: person_silhouette | face_candidate | face_match
+    detection_type: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     frame_timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     frame_number: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     yolo_confidence: Mapped[float] = mapped_column(Float, nullable=False)
@@ -125,10 +127,10 @@ class Alert(Base, UUIDPrimaryKeyMixin, UpdatedAtMixin):
     """
     __tablename__ = "alerts"
 
-    detection_id: Mapped[uuid.UUID] = mapped_column(
+    detection_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("detections.id", ondelete="RESTRICT"),
-        nullable=False,
+        nullable=True,
     )
     recipient_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),

@@ -7,10 +7,11 @@
 
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useWebSocket } from "@/lib/websocket";
+import { useMultiDroneTelemetry } from "@/lib/useMultiDroneTelemetry";
 import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi, photosApi } from "@/lib/api";
 import { MissionMap } from "@/components/map/MissionMap";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
@@ -115,7 +116,7 @@ export default function MissionDetailPage() {
         if (droneId && bbox) {
           const detType   = (msg.detection_type as string) ?? "person_silhouette";
           const conf      = (msg.yolo_confidence as number) ?? (msg.confidence as number) ?? 0;
-          const sim       = msg.similarity_score as number | undefined;
+          const sim       = (msg.similarity_score as number) ?? 0;
           setLatestDetections((prev) => ({
             ...prev,
             [droneId]: [{ bbox, detection_type: detType, confidence: conf, similarity: sim }],
@@ -216,7 +217,7 @@ export default function MissionDetailPage() {
       const updated = await missionsApi.update(mission.id, updates);
       setMission(updated);
       if (newStatus === "completed") {
-        router.push("/dashboard/detections");
+        router.push(`/dashboard/missions/${mission.id}/summary`);
       }
     } catch {
       // Silencioso
@@ -289,11 +290,17 @@ export default function MissionDetailPage() {
     );
   }
 
-  // Primer dron asignado activo para el mapa
-  const activeDrone  = assignedDrones.find((d) => !d.left_at);
-  const droneId      = activeDrone?.drone_id ?? "";
+  // Drones activos en la misión
+  const activeDroneIds = useMemo(
+    () => assignedDrones.filter((d) => !d.left_at).map((d) => d.drone_id),
+    [assignedDrones],
+  );
+  const { droneStates, routes, connectedCount } = useMultiDroneTelemetry(activeDroneIds, accessToken);
+  const hasDrones = activeDroneIds.length > 0;
   const transitions  = STATUS_TRANSITIONS[mission.status] ?? [];
+  const isVideoPaused = mission.status === "paused" || mission.status === "completed" || mission.status === "cancelled" || mission.status === "interrupted";
 
+  // Contadores de detecciones en vivo para el panel
   // Drones disponibles (no asignados activamente a esta misión)
   const assignedDroneIds = new Set(assignedDrones.filter((d) => !d.left_at).map((d) => d.drone_id));
   const availableDrones  = allDrones.filter((d) => !assignedDroneIds.has(d.id));
@@ -371,11 +378,39 @@ export default function MissionDetailPage() {
         )}
       </div>
 
+      {/* Banner de pausa — visible en todo el dashboard cuando la misión está pausada */}
+      {isVideoPaused && (
+        <div className="shrink-0 flex items-center gap-3 bg-amber-50 border-b border-amber-200 px-6 py-2">
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-500 text-white text-sm font-bold">⏸</span>
+          <p className="flex-1 text-sm font-semibold text-amber-800">
+            MISIÓN PAUSADA — Análisis IA y video congelados. Pulsa <strong>Reanudar</strong> para continuar.
+          </p>
+          {canManage && (
+            <button
+              onClick={() => handleStatusClick("active", "Reanudar")}
+              disabled={statusLoading}
+              className="shrink-0 rounded-lg bg-green-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+            >
+              {statusLoading ? "…" : "▶ Reanudar"}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Cuerpo: primario 70% + panel derecho 30% — ambos siempre visibles */}
       <div className="flex flex-1 overflow-hidden">
 
         {/* Área primaria — grande (70%) */}
         <div className="relative h-full" style={{ width: "70%" }}>
+          {/* Overlay de pausa sobre el área primaria */}
+          {isVideoPaused && (
+            <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center bg-black/30">
+              <div className="flex flex-col items-center gap-2">
+                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/90 text-3xl font-bold text-white shadow-lg">⏸</span>
+                <span className="rounded-full bg-black/60 px-4 py-1 text-sm font-semibold text-white">Pausada</span>
+              </div>
+            </div>
+          )}
           {viewMode === "video" ? (
             <DroneVideoMosaic
               mission={mission}
@@ -384,11 +419,14 @@ export default function MissionDetailPage() {
               canManage={canManage}
               onMissionUpdate={setMission}
               latestDetections={latestDetections}
+              isPaused={isVideoPaused}
             />
-          ) : droneId ? (
+          ) : hasDrones ? (
             <MissionMap
               missionId={missionId}
-              droneId={droneId}
+              droneStates={droneStates}
+              routes={routes}
+              connectedCount={connectedCount}
               userRole={user?.role ?? "buscador"}
             />
           ) : (
@@ -416,10 +454,12 @@ export default function MissionDetailPage() {
           {/* Vista secundaria — intercambia con la primaria */}
           <div className="shrink-0 border-b border-gray-100" style={{ height: "40%" }}>
             {viewMode === "video" ? (
-              droneId ? (
+              hasDrones ? (
                 <MissionMap
                   missionId={missionId}
-                  droneId={droneId}
+                  droneStates={droneStates}
+                  routes={routes}
+                  connectedCount={connectedCount}
                   userRole={user?.role ?? "buscador"}
                 />
               ) : (
@@ -435,6 +475,7 @@ export default function MissionDetailPage() {
                 canManage={canManage}
                 onMissionUpdate={setMission}
                 latestDetections={latestDetections}
+                isPaused={isVideoPaused}
               />
             )}
           </div>
@@ -667,7 +708,7 @@ export default function MissionDetailPage() {
       >
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            {confirmAction?.status === "completed" && "La misión se marcará como completada y serás redirigido a las detecciones registradas."}
+            {confirmAction?.status === "completed" && "La misión se marcará como completada y serás redirigido al resumen."}
             {confirmAction?.status === "paused" && "La misión se pausará y el AI worker dejará de procesar el stream."}
             {confirmAction?.status === "interrupted" && "La misión se marcará como interrumpida. Podrás reanudarla más adelante."}
             {confirmAction?.status === "cancelled" && "La misión se cancelará. Esta acción no se puede deshacer."}

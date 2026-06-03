@@ -190,7 +190,7 @@ export default function FamiliarReportPage() {
     setAttrs((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
-  // ── Anverso: OCR + añadir como foto de referencia para IA ───────────────────
+  // ── Anverso: OCR para extraer datos + añadir como foto de referencia si no hay otra ──
   const handleCiAnverso = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -199,11 +199,13 @@ export default function FamiliarReportPage() {
     const preview = URL.createObjectURL(file);
     setCiAnversoPreview(preview);
 
-    // Añadir al array de fotos para que suba como referencia facial
-    const newPhoto: SelectedPhoto = { file, preview, status: "pending" };
-    await handlePhotosChange([...photos, newPhoto]);
+    // Añadir al array de fotos solo si no hay otras fotos de referencia
+    if (photos.length === 0) {
+      const newPhoto: SelectedPhoto = { file, preview, status: "pending" };
+      await handlePhotosChange([newPhoto]);
+    }
 
-    // OCR en paralelo
+    // OCR: extrae datos del documento
     setOcrLoading(true);
     setOcrSuccess(false);
     try {
@@ -351,7 +353,7 @@ export default function FamiliarReportPage() {
             {/* Slots de carnet: anverso + reverso */}
             <div>
               <p className="text-[11px] text-slate-500 mb-2">
-                Escaneá ambos lados del carnet. El <strong>anverso</strong> extrae los datos y la foto de la persona para el reconocimiento facial.
+                Escaneá el carnet para completar los datos automáticamente. La foto del carnet <strong>no</strong> se usa para reconocimiento — agregá la foto de la persona en la sección de abajo.
               </p>
               <input ref={ciAnversoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCiAnverso} />
               <input ref={ciReversoRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleCiReverso} />
@@ -485,11 +487,11 @@ export default function FamiliarReportPage() {
             </div>
           </div>
 
-          {/* ── SECCIÓN 2: Foto ───────────────────────────────────────────── */}
+          {/* ── SECCIÓN 2: Fotos de referencia para IA ───────────────────── */}
           <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-[13px] font-semibold text-slate-800 mb-1">Foto</h2>
+            <h2 className="text-[13px] font-semibold text-slate-800 mb-1">Fotos de referencia para reconocimiento</h2>
             <p className="text-[11px] text-slate-500 mb-3">
-              Sube una foto reciente con la cara visible. Se analizará automáticamente para completar algunos campos.
+              Sube una o más fotos recientes con la cara visible. El sistema las usará para identificar a la persona durante la misión de búsqueda.
             </p>
             <PhotoUpload photos={photos} onChange={handlePhotosChange}
               disabled={isLoading} analyses={photoAnalyses} analyzingIndexes={analyzingIndexes} />

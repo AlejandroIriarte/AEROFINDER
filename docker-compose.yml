@@ -166,6 +166,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL:           postgresql+asyncpg://aerofinder_app:${POSTGRES_APP_PASSWORD}@postgres:5432/${POSTGRES_DB:-aerofinder}
+      WORKER_DATABASE_URL:    postgresql+asyncpg://aerofinder_worker:${POSTGRES_WORKER_PASSWORD}@postgres:5432/${POSTGRES_DB:-aerofinder}
       REDIS_URL:              ${REDIS_URL:-redis://redis:6379}
       REDIS_STREAM_TELEMETRY:    ${REDIS_STREAM_TELEMETRY:-aerofinder:telemetry}
       REDIS_STREAM_DETECTIONS:   ${REDIS_STREAM_DETECTIONS:-aerofinder:detections}

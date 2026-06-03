@@ -21,6 +21,7 @@ import L from "leaflet";
 import { DroneMarker } from "@/components/map/DroneMarker";
 import { DetectionMarker } from "@/components/map/DetectionMarker";
 import type { DetectionWSMessage } from "@/components/map/DetectionMarker";
+import type { DroneState } from "@/lib/useMultiDroneTelemetry";
 import type { GeoJsonPolygon, RoleName } from "@/lib/types";
 
 // ── Corrección del ícono por defecto de Leaflet con webpack ──────────────────
@@ -34,26 +35,16 @@ L.Icon.Default.mergeOptions({
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
-interface DroneState {
-  lat: number;
-  lng: number;
-  heading_deg: number;
-  altitude_m: number;
-  battery_pct: number;
-  speed_mps: number;
-}
-
 interface MapInnerProps {
-  droneId:    string;
-  droneState: DroneState | null;
-  route:      [number, number][];         // historial de puntos [lat, lng]
-  searchArea: GeoJsonPolygon | null;
-  detections: DetectionWSMessage[];
-  alertIds:   Set<string>;               // detection_ids que llegaron como "alert"
-  userRole:   RoleName;
-  centerLat:  number;
-  centerLng:  number;
-  userPos:    [number, number] | null;   // posición GPS del usuario (puede ser null)
+  droneStates: Record<string, DroneState>;
+  routes:      Record<string, [number, number][]>;
+  searchArea:  GeoJsonPolygon | null;
+  detections:  DetectionWSMessage[];
+  alertIds:    Set<string>;
+  userRole:    RoleName;
+  centerLat:   number;
+  centerLng:   number;
+  userPos:     [number, number] | null;
 }
 
 // ── Coordenadas por defecto: Cochabamba, Bolivia ──────────────────────────────
@@ -61,9 +52,8 @@ const DEFAULT_CENTER: [number, number] = [-17.3895, -66.1568];
 const DEFAULT_ZOOM = 14;
 
 export default function MapInner({
-  droneId,
-  droneState,
-  route,
+  droneStates,
+  routes,
   searchArea,
   detections,
   alertIds,
@@ -72,15 +62,17 @@ export default function MapInner({
   centerLng,
   userPos,
 }: MapInnerProps) {
-  // Centro del mapa: primer punto del polígono o posición del dron o default
+  const firstDrone = Object.values(droneStates)[0] ?? null;
+
+  // Centro: primer punto del polígono → primer dron activo → default
   const center: [number, number] =
     searchArea?.coordinates[0]?.[0]
       ? [searchArea.coordinates[0][0][1], searchArea.coordinates[0][0][0]]
-      : droneState
-      ? [droneState.lat, droneState.lng]
+      : firstDrone
+      ? [firstDrone.lat, firstDrone.lng]
       : DEFAULT_CENTER;
 
-  // Coordenadas del polígono de búsqueda (PostGIS: [lng, lat] → Leaflet: [lat, lng])
+  // Coordenadas del polígono (PostGIS: [lng, lat] → Leaflet: [lat, lng])
   const polygonPositions: [number, number][] =
     searchArea?.coordinates[0]?.map(([lng, lat]) => [lat, lng]) ?? [];
 
@@ -91,10 +83,8 @@ export default function MapInner({
       style={{ height: "100%", width: "100%" }}
       zoomControl={false}
     >
-      {/* Control de zoom en esquina superior izquierda */}
       <ZoomControl position="topleft" />
 
-      {/* Capa base de OpenStreetMap */}
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -114,30 +104,30 @@ export default function MapInner({
         />
       )}
 
-      {/* Ruta volada (polyline) */}
-      {route.length > 1 && (
-        <Polyline
-          positions={route}
-          pathOptions={{
-            color:   "#6366f1",
-            weight:  2,
-            opacity: 0.7,
-          }}
-        />
+      {/* Ruta de cada dron */}
+      {Object.entries(routes).map(([id, pts]) =>
+        pts.length > 1 ? (
+          <Polyline
+            key={id}
+            positions={pts}
+            pathOptions={{ color: "#6366f1", weight: 2, opacity: 0.7 }}
+          />
+        ) : null,
       )}
 
-      {/* Marcador del dron en tiempo real */}
-      {droneState && (
+      {/* Marcador de cada dron en tiempo real */}
+      {Object.entries(droneStates).map(([id, state]) => (
         <DroneMarker
-          lat={droneState.lat}
-          lng={droneState.lng}
-          heading_deg={droneState.heading_deg}
-          altitude_m={droneState.altitude_m}
-          battery_pct={droneState.battery_pct}
-          speed_mps={droneState.speed_mps}
-          droneId={droneId}
+          key={id}
+          lat={state.lat}
+          lng={state.lng}
+          heading_deg={state.heading_deg}
+          altitude_m={state.altitude_m}
+          battery_pct={state.battery_pct}
+          speed_mps={state.speed_mps}
+          droneId={id}
         />
-      )}
+      ))}
 
       {/* Marcadores de detecciones */}
       {detections.map((det) => (
