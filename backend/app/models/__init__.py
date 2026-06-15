@@ -48,6 +48,7 @@ from app.models.field_reports import (  # noqa: F401
     FieldReportMatch,
     PushSubscription,
 )
+from app.models.map_access import MissionMapAccess  # noqa: F401
 
 __all__ = [
     "Base",
@@ -84,4 +85,5 @@ __all__ = [
     "FieldReportPhoto",
     "FieldReportMatch",
     "PushSubscription",
+    "MissionMapAccess",
 ]
