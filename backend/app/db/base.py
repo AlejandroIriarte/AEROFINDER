@@ -9,6 +9,8 @@ from sqlalchemy import DateTime, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy import Uuid
 
+from app.models.map_access import MissionMapAccess  # noqa: F401
+
 
 class Base(DeclarativeBase):
     """Clase base de todos los modelos ORM del proyecto."""
