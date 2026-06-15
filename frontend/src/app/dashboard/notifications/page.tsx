@@ -206,6 +206,7 @@ export default function NotificationsPage() {
   const [personName,     setPersonName]     = useState<string | undefined>(undefined);
   const [alerts,         setAlerts]         = useState<DetectionWSMessage[]>([]);
   const [systemAlerts,   setSystemAlerts]   = useState<Alert[]>([]);
+  const [confirmedAlerts, setConfirmedAlerts] = useState<Alert[]>([]);
   const [missionEnded,   setMissionEnded]   = useState(false);
   const [loadingMission, setLoadingMission] = useState(true);
 
@@ -237,6 +238,8 @@ export default function NotificationsPage() {
       if (active && active.status !== "active") setMissionEnded(true);
       setHasPerson(persons.length > 0);
       if (persons.length > 0) setPersonName(persons[0].full_name);
+      // Alertas confirmadas por el equipo de búsqueda
+      setConfirmedAlerts(allAlerts.filter((a) => a.status === "confirmed" && a.detection_id));
       // Alertas de sistema (sin detection_id) = notificaciones de cierre de misión
       setSystemAlerts(allAlerts.filter((a) => !a.detection_id && a.message_text));
     }).finally(() => { if (!cancelled) setLoadingMission(false); });
@@ -350,6 +353,44 @@ export default function NotificationsPage() {
               </div>
             </div>
           ))}
+
+          {/* Alertas confirmadas por el equipo */}
+          {confirmedAlerts.length > 0 && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                <p className="text-[12px] font-semibold text-slate-600 uppercase tracking-wider">
+                  Confirmadas por el equipo ({confirmedAlerts.length})
+                </p>
+              </div>
+              {confirmedAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 p-4"
+                >
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-green-100">
+                    <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold text-green-800">
+                      Coincidencia confirmada por el equipo de búsqueda
+                    </p>
+                    {alert.message_text && (
+                      <p className="mt-0.5 text-[12px] text-green-700">{alert.message_text}</p>
+                    )}
+                    <p className="mt-1 text-[10px] text-green-500">
+                      {new Date(alert.generated_at).toLocaleString("es-BO", {
+                        dateStyle: "medium",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
 
           {/* Alertas de detección (face_match) */}
           {alerts.length === 0 && !missionEnded ? (
