@@ -75,7 +75,7 @@ export function useLocationSharing(
       (err) => {
         setGeoError(err.message);
       },
-      { enableHighAccuracy: true, maximumAge: 5_000 }
+      { enableHighAccuracy: true, maximumAge: 5_000, timeout: 10_000 }
     );
 
     sendIntervalRef.current = setInterval(() => {

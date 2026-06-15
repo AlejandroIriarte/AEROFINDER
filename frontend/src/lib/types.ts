@@ -385,7 +385,8 @@ export type WSMessageType =
   | "telemetry"
   | "detection"
   | "alert"
-  | "mission_update";
+  | "mission_update"
+  | "user_location";
 
 export interface WSMessage {
   type: WSMessageType;
