@@ -513,3 +513,28 @@ export interface MissionSummary {
   dismissed_alerts: number;
   drones_used: number;
 }
+
+// ── Mapa en tiempo real ───────────────────────────────────────────────────────
+
+export interface MapAccessGrant {
+  id: string;
+  mission_id: string;
+  user_id: string;
+  granted_by: string | null;
+  granted_at: string;
+  user_full_name: string;
+  user_role: RoleName;
+}
+
+/** Posición de un usuario en el mapa, recibida por WS */
+export interface UserLocationState {
+  user_id: string;
+  user_name: string;
+  role: RoleName;
+  lat: number;
+  lng: number;
+  accuracy_m: number | null;
+  timestamp: string;
+  /** true si no recibimos actualización en más de 60s */
+  stale?: boolean;
+}

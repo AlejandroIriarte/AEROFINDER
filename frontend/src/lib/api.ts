@@ -19,6 +19,7 @@ import type {
   DroneUpdate,
   FieldReport,
   LoginResponse,
+  MapAccessGrant,
   MissingPersonStatus,
   MissionDrone,
   PhotoAnalysisResult,
@@ -637,6 +638,26 @@ export const ocrApi = {
     formData.append("file", file);
     const { data } = await api.post<OcrDocumentResult>("/ocr/document", formData);
     return data;
+  },
+};
+
+// ── API de acceso al mapa de misión ──────────────────────────────────────────
+
+export const mapAccessApi = {
+  async list(missionId: string): Promise<MapAccessGrant[]> {
+    const { data } = await api.get<MapAccessGrant[]>(`/missions/${missionId}/map-access`);
+    return data;
+  },
+
+  async grant(missionId: string, userId: string): Promise<MapAccessGrant> {
+    const { data } = await api.post<MapAccessGrant>(`/missions/${missionId}/map-access`, {
+      user_id: userId,
+    });
+    return data;
+  },
+
+  async revoke(missionId: string, userId: string): Promise<void> {
+    await api.delete(`/missions/${missionId}/map-access/${userId}`);
   },
 };
 
