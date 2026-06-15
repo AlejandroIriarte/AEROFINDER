@@ -11,6 +11,7 @@
 # Los mensajes salientes los emite el servidor vía ws_manager.broadcast().
 # =============================================================================
 
+import json
 import logging
 import uuid
 from typing import Any
@@ -101,6 +102,31 @@ async def _familiar_owns_mission(user_id: uuid.UUID, mission_id: uuid.UUID) -> b
             return False
 
 
+async def _has_map_access(user_id: uuid.UUID, role: RoleName, mission_id: uuid.UUID) -> bool:
+    """
+    Verifica si el usuario tiene permiso para ver el mapa de la misión.
+    Admin y buscador siempre tienen acceso.
+    Ayudante y familiar necesitan estar en mission_map_access.
+    """
+    from app.models.map_access import MissionMapAccess
+
+    if role in (RoleName.admin, RoleName.super_admin, RoleName.buscador):
+        return True
+
+    async with AsyncSessionLocal() as db:
+        try:
+            result = await db.execute(
+                select(MissionMapAccess.id).where(
+                    MissionMapAccess.mission_id == mission_id,
+                    MissionMapAccess.user_id == user_id,
+                )
+            )
+            return result.scalar_one_or_none() is not None
+        except Exception:
+            logger.error("Error al verificar acceso al mapa user=%s mission=%s", user_id, mission_id, exc_info=True)
+            return False
+
+
 # ── WS /ws/missions/{mission_id} ─────────────────────────────────────────────
 
 @router.websocket("/ws/missions/{mission_id}")
@@ -131,17 +157,69 @@ async def ws_mission(
     await ws_manager.connect(websocket, room_id)
 
     try:
+        # Verificar acceso al mapa antes de confirmar conexión
+        can_see_map = await _has_map_access(auth["user_id"], role, mission_id)
+
+        # Obtener nombre del usuario para los broadcasts de ubicación
+        user_display_name = str(auth["user_id"])
+        async with AsyncSessionLocal() as db:
+            try:
+                result = await db.execute(
+                    select(User.full_name).where(User.id == auth["user_id"])
+                )
+                name = result.scalar_one_or_none()
+                if name:
+                    user_display_name = name
+            except Exception:
+                logger.error("Error al obtener nombre de usuario WS user=%s", auth["user_id"], exc_info=True)
+
         # Confirmación de conexión
         await ws_manager.send_personal(websocket, {
             "type": "connected",
             "room": room_id,
+            "can_see_map": can_see_map,
         })
 
-        # Bucle keepalive: cliente puede enviar ping; servidor responde pong
+        # Bucle principal: keepalive + user_location
         while True:
             data = await websocket.receive_text()
+
+            # Keepalive string (enviado por el hook useWebSocket cada 30s)
             if data == "ping":
                 await ws_manager.send_personal(websocket, {"type": "pong"})
+                continue
+
+            # Intentar parsear como JSON
+            try:
+                msg = json.loads(data)
+            except (json.JSONDecodeError, ValueError):
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type == "user_location":
+                # Solo procesar si el usuario tiene acceso al mapa
+                if not can_see_map:
+                    continue
+
+                lat = msg.get("lat")
+                lng = msg.get("lng")
+                if lat is None or lng is None:
+                    continue
+
+                # Broadcast a toda la room con datos del usuario
+                import datetime as _dt
+                await ws_manager.broadcast(room_id, {
+                    "type": "user_location",
+                    "user_id": str(auth["user_id"]),
+                    "user_name": user_display_name,
+                    "role": role.value,
+                    "lat": lat,
+                    "lng": lng,
+                    "accuracy_m": msg.get("accuracy_m"),
+                    "timestamp": _dt.datetime.utcnow().isoformat() + "Z",
+                })
+
     except WebSocketDisconnect:
         logger.debug("WS desconectado room=%s user=%s", room_id, auth["user_id"])
     finally:
