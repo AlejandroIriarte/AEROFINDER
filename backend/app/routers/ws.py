@@ -11,6 +11,7 @@
 # Los mensajes salientes los emite el servidor vía ws_manager.broadcast().
 # =============================================================================
 
+import datetime
 import json
 import logging
 import uuid
@@ -208,7 +209,6 @@ async def ws_mission(
                     continue
 
                 # Broadcast a toda la room con datos del usuario
-                import datetime as _dt
                 await ws_manager.broadcast(room_id, {
                     "type": "user_location",
                     "user_id": str(auth["user_id"]),
@@ -217,7 +217,7 @@ async def ws_mission(
                     "lat": lat,
                     "lng": lng,
                     "accuracy_m": msg.get("accuracy_m"),
-                    "timestamp": _dt.datetime.utcnow().isoformat() + "Z",
+                    "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
                 })
 
     except WebSocketDisconnect:
