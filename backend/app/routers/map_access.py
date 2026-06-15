@@ -70,7 +70,7 @@ async def list_map_access(
             granted_by=access.granted_by,
             granted_at=access.granted_at,
             user_full_name=user.full_name,
-            user_role=role.name.value if hasattr(role.name, "value") else str(role.name),
+            user_role=role.name.value,
         )
         for access, user, role in rows
     ]
@@ -151,7 +151,7 @@ async def grant_map_access(
         granted_by=access.granted_by,
         granted_at=access.granted_at,
         user_full_name=target_user.full_name,
-        user_role=target_role.name.value if hasattr(target_role.name, "value") else str(target_role.name),
+        user_role=target_role.name.value,
     )
 
 
