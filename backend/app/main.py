@@ -17,6 +17,7 @@ from app.routers import (
     detections as detections_router,
     drones as drones_router,
     field_reports as field_reports_router,
+    map_access as map_access_router,
     missions as missions_router,
     ocr as ocr_router,
     persons as persons_router,
@@ -95,6 +96,7 @@ app.include_router(photo_analysis_router.router)
 app.include_router(admin_import_router.router)
 app.include_router(audit_log_router.router)
 app.include_router(field_reports_router.router)
+app.include_router(map_access_router.router)
 app.include_router(ocr_router.router)
 app.include_router(superadmin_router.router)
 app.include_router(push_router.router)
