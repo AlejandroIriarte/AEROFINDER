@@ -101,22 +101,26 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
     `}>
       <nav className="flex flex-1 flex-col overflow-y-auto p-2 gap-0">
 
-        {/* ── SUPER ADMIN ─────────────────────────────────────── */}
-        {role === "super_admin" && (
+        {/* ── SUPER ADMIN + ADMIN ─────────────────────────────── */}
+        {(role === "super_admin" || role === "admin") && (
           <>
             {isOpen ? (
               <>
-                <CollapsibleNavGroup label="Sistema" storageKey="sa_sistema" defaultOpen={true}>
-                  <NavLink href="/dashboard/superadmin" label="Resumen" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard/superadmin"} />
+                <CollapsibleNavGroup label="Operaciones" storageKey="sa_ops" defaultOpen={true}>
+                  <NavLink href="/dashboard/admin" label="Panel" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard/admin"} />
+                  <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={isOpen} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
+                  <NavLink href="/dashboard/persons" label="Personas buscadas" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/persons")} />
+                  <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={isOpen} isActive={isActive("/dashboard/drones")} />
+                  <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
+                  <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
+                  <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+                </CollapsibleNavGroup>
+                <CollapsibleNavGroup label="Sistema" storageKey="sa_sistema" defaultOpen={false}>
+                  <NavLink href="/dashboard/superadmin" label="Resumen técnico" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard/superadmin"} />
                   <NavLink href="/dashboard/superadmin/infrastructure" label="Infraestructura" icon={Icons.health} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/infrastructure")} />
-                </CollapsibleNavGroup>
-                <CollapsibleNavGroup label="Accesos críticos" storageKey="sa_accesos" defaultOpen={true}>
                   <NavLink href="/dashboard/superadmin/users" label="Usuarios del sistema" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/users")} />
-                  <NavLink href="/dashboard/superadmin/admins" label="Gestión de admins" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/admins")} />
                   <NavLink href="/dashboard/superadmin/sessions" label="Sesiones activas" icon={Icons.lock} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/sessions")} />
-                </CollapsibleNavGroup>
-                <CollapsibleNavGroup label="Seguridad" storageKey="sa_seguridad" defaultOpen={true}>
-                  <NavLink href="/dashboard/superadmin/audit" label="Auditoría profunda" icon={Icons.logs} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/audit")} />
+                  <NavLink href="/dashboard/superadmin/audit" label="Auditoría" icon={Icons.logs} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/audit")} />
                   <NavLink href="/dashboard/superadmin/hard-delete" label="Borrados definitivos" icon={Icons.trash} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/hard-delete")} />
                 </CollapsibleNavGroup>
                 <CollapsibleNavGroup label="Configuración" storageKey="sa_config" defaultOpen={false}>
@@ -126,65 +130,57 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
               </>
             ) : (
               <>
-                <NavLink href="/dashboard/superadmin" label="Resumen" icon={Icons.home} isOpen={false} isActive={pathname === "/dashboard/superadmin"} />
-                <NavLink href="/dashboard/superadmin/infrastructure" label="Infraestructura" icon={Icons.health} isOpen={false} isActive={isActive("/dashboard/superadmin/infrastructure")} />
-                <NavLink href="/dashboard/superadmin/users" label="Usuarios" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/users")} />
-                <NavLink href="/dashboard/superadmin/admins" label="Admins" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/admins")} />
-                <NavLink href="/dashboard/superadmin/sessions" label="Sesiones" icon={Icons.lock} isOpen={false} isActive={isActive("/dashboard/superadmin/sessions")} />
-                <NavLink href="/dashboard/superadmin/audit" label="Auditoría" icon={Icons.logs} isOpen={false} isActive={isActive("/dashboard/superadmin/audit")} />
-                <NavLink href="/dashboard/superadmin/hard-delete" label="Borrados" icon={Icons.trash} isOpen={false} isActive={isActive("/dashboard/superadmin/hard-delete")} />
-                <NavLink href="/dashboard/superadmin/config" label="Config" icon={Icons.config} isOpen={false} isActive={isActive("/dashboard/superadmin/config")} />
-                <NavLink href="/dashboard/superadmin/network" label="Red" icon={Icons.network} isOpen={false} isActive={isActive("/dashboard/superadmin/network")} />
-              </>
-            )}
-          </>
-        )}
-
-        {/* ── ADMIN ────────────────────────────────────────────── */}
-        {role === "admin" && (
-          <>
-            {isOpen ? (
-              <>
-                <CollapsibleNavGroup label="Operaciones" storageKey="adm_ops" defaultOpen={true}>
-                  <NavLink href="/dashboard/admin" label="Panel" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard/admin"} />
-                  <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={isOpen} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
-                  <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
-                  <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
-                  <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
-                </CollapsibleNavGroup>
-                <CollapsibleNavGroup label="Recursos" storageKey="adm_recursos" defaultOpen={true}>
-                  <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={isOpen} isActive={isActive("/dashboard/drones")} />
-                  <NavLink href="/dashboard/superadmin/users" label="Personal de campo" icon={Icons.users} isOpen={isOpen} isActive={isActive("/dashboard/superadmin/users")} />
-                  <NavLink href="/dashboard/persons" label="Personas buscadas" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/persons")} />
-                </CollapsibleNavGroup>
-              </>
-            ) : (
-              <>
                 <NavLink href="/dashboard/admin" label="Panel" icon={Icons.home} isOpen={false} isActive={pathname === "/dashboard/admin"} />
                 <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={false} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
+                <NavLink href="/dashboard/persons" label="Personas" icon={Icons.persons} isOpen={false} isActive={isActive("/dashboard/persons")} />
+                <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={false} isActive={isActive("/dashboard/drones")} />
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={false} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                 <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
-                <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={false} isActive={isActive("/dashboard/drones")} />
-                <NavLink href="/dashboard/superadmin/users" label="Personal" icon={Icons.users} isOpen={false} isActive={isActive("/dashboard/superadmin/users")} />
-                <NavLink href="/dashboard/persons" label="Personas" icon={Icons.persons} isOpen={false} isActive={isActive("/dashboard/persons")} />
+                <NavLink href="/dashboard/superadmin" label="Técnico" icon={Icons.health} isOpen={false} isActive={isActive("/dashboard/superadmin")} />
+                <NavLink href="/dashboard/superadmin/config" label="Config" icon={Icons.config} isOpen={false} isActive={isActive("/dashboard/superadmin/config")} />
               </>
             )}
           </>
         )}
 
-        {/* ── BUSCADOR / AYUDANTE ───────────────────────────────── */}
-        {(role === "buscador" || role === "ayudante") && (
+        {/* ── BUSCADOR (RESCATISTA PRINCIPAL) ──────────────────── */}
+        {role === "buscador" && (
           <>
             {isOpen ? (
-              <CollapsibleNavGroup label="Operaciones" storageKey="ops" defaultOpen={true}>
+              <CollapsibleNavGroup label="Operaciones" storageKey="bus_ops" defaultOpen={true}>
+                <NavLink href="/dashboard" label="Dashboard" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard"} />
+                <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={isOpen} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
+                <NavLink href="/dashboard/persons" label="Personas buscadas" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/persons")} />
+                <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={isOpen} isActive={isActive("/dashboard/drones")} />
+                <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
+                <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
+                <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+              </CollapsibleNavGroup>
+            ) : (
+              <>
+                <NavLink href="/dashboard" label="Dashboard" icon={Icons.home} isOpen={false} isActive={pathname === "/dashboard"} />
+                <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={false} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
+                <NavLink href="/dashboard/persons" label="Personas" icon={Icons.persons} isOpen={false} isActive={isActive("/dashboard/persons")} />
+                <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={false} isActive={isActive("/dashboard/drones")} />
+                <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={false} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
+                <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
+                <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+              </>
+            )}
+          </>
+        )}
+
+        {/* ── AYUDANTE ─────────────────────────────────────────── */}
+        {role === "ayudante" && (
+          <>
+            {isOpen ? (
+              <CollapsibleNavGroup label="Seguimiento" storageKey="ayu_seg" defaultOpen={true}>
                 <NavLink href="/dashboard" label="Dashboard" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard"} />
                 <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={isOpen} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
-                {role === "ayudante" && <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />}
-                {role === "buscador" && <NavLink href="/dashboard/persons" label="Personas" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/persons")} />}
-                {role === "buscador" && <NavLink href="/dashboard/drones" label="Drones" icon={Icons.drones} isOpen={isOpen} isActive={isActive("/dashboard/drones")} />}
+                <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
               </CollapsibleNavGroup>
             ) : (
               <>
@@ -192,6 +188,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 <NavLink href="/dashboard/missions" label="Misiones" icon={Icons.missions} isOpen={false} isActive={isActive("/dashboard/missions")} badge={badges.missions} badgeColor="blue" />
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={false} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
+                <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
               </>
             )}
           </>
@@ -203,14 +200,14 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
             <NavLink href="/dashboard" label="Dashboard" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard"} />
             <NavLink href="/dashboard/familiar" label="Mis casos" icon={Icons.persons} isOpen={isOpen} isActive={isActive("/dashboard/familiar") && !pathname.includes("report")} />
             <NavLink href="/dashboard/familiar/report" label="Reportar" icon={Icons.report} isOpen={isOpen} isActive={isActive("/dashboard/familiar/report")} />
-            <NavLink href="/dashboard/notifications" label="Notificaciones" icon={Icons.bell} isOpen={isOpen} isActive={isActive("/dashboard/notifications")} />
+            <NavLink href="/dashboard/notifications" label="Alertas en tiempo real" icon={Icons.bell} isOpen={isOpen} isActive={isActive("/dashboard/notifications")} />
           </>
         )}
 
         <div className="flex-1" />
 
-        {/* Conectar — buscador/admin */}
-        {(role === "buscador" || role === "admin") && (
+        {/* Conectar — buscador */}
+        {role === "buscador" && (
           <NavLink href="/connect" label="Conectar" icon={Icons.connect} isOpen={isOpen} isActive={pathname === "/connect"} />
         )}
 
