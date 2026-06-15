@@ -27,7 +27,6 @@ class MissionMapAccess(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
-        default=uuid.uuid4,
         server_default=text("gen_random_uuid()"),
     )
     mission_id: Mapped[uuid.UUID] = mapped_column(
