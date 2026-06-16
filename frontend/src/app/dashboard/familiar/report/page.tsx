@@ -199,12 +199,6 @@ export default function FamiliarReportPage() {
     const preview = URL.createObjectURL(file);
     setCiAnversoPreview(preview);
 
-    // Añadir al array de fotos solo si no hay otras fotos de referencia
-    if (photos.length === 0) {
-      const newPhoto: SelectedPhoto = { file, preview, status: "pending" };
-      await handlePhotosChange([newPhoto]);
-    }
-
     // OCR: extrae datos del documento
     setOcrLoading(true);
     setOcrSuccess(false);

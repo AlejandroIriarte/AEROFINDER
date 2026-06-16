@@ -49,6 +49,7 @@ pywebpush==2.0.0
 # Nota: en Linux el paquete es "paddlepaddle" (sin -cpu); en Windows es "paddlepaddle-cpu"
 # paddleocr instala opencv-python (con libGL); reinstalamos headless después para evitar
 # la dependencia de libGL.so.1 en el contenedor slim
+setuptools>=70.0.0
 paddlepaddle==2.6.2
 paddleocr==2.7.3
 opencv-python-headless>=4.9.0
