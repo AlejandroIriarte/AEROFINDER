@@ -408,12 +408,20 @@ async def get_field_report_data(report_id: str) -> Optional[dict]:
         return None
 
 
-async def search_similar_persons(query_vector: "np.ndarray", top_k: int = 3) -> list[dict]:
+async def search_similar_persons(
+    query_vector: "np.ndarray",
+    top_k: int = 3,
+    min_similarity: float = 0.5,
+) -> list[dict]:
     """
     Busca las top_k personas más similares al vector de consulta usando
-    pgvector cosine distance (<=>). Devuelve lista con person_id, similarity_score y rank.
+    pgvector cosine distance (<=>). Filtra por min_similarity para evitar
+    falsos positivos (siempre retornaba el más cercano aunque no hubiera match real).
+    Devuelve lista con person_id, similarity_score y rank.
     """
     vector_str = "[" + ",".join(str(float(v)) for v in query_vector) + "]"
+    # pgvector cosine distance: distance = 1 - similarity
+    max_distance = 1.0 - min_similarity
     try:
         async with AsyncSessionLocal() as session:
             result = await session.execute(
@@ -427,11 +435,12 @@ async def search_similar_persons(query_vector: "np.ndarray", top_k: int = 3) -> 
                     WHERE pp.is_active = TRUE
                       AND pp.has_embedding = TRUE
                     GROUP BY pp.missing_person_id
+                    HAVING MIN(fe.embedding <=> :query::vector) <= :max_distance
                     ORDER BY distance ASC
                     LIMIT :top_k
                     """
                 ),
-                {"query": vector_str, "top_k": top_k},
+                {"query": vector_str, "top_k": top_k, "max_distance": max_distance},
             )
             rows = result.mappings().all()
         return [

@@ -21,7 +21,7 @@ import redis.asyncio as aioredis
 from minio import Minio
 
 from config import settings
-from db import get_field_report_data, save_field_report_results, search_similar_persons
+from db import get_field_report_data, load_system_config, save_field_report_results, search_similar_persons
 from publisher import RedisPublisher
 from recognizer import FaceRecognizer
 
@@ -106,8 +106,10 @@ async def _process_field_report(
         if norm > 0:
             avg_emb = avg_emb / norm
 
-        # ── 4. Búsqueda pgvector ─────────────────────────────────────────────
-        matches = await search_similar_persons(avg_emb, top_k=3)
+        # ── 4. Búsqueda pgvector con umbral mínimo de similitud ──────────────
+        cfg = await load_system_config(["facenet.similarity_threshold"])
+        min_sim = float(cfg.get("facenet.similarity_threshold", 0.55))
+        matches = await search_similar_persons(avg_emb, top_k=3, min_similarity=min_sim)
         logger.info(
             "Búsqueda completada: report=%s matches=%d",
             report_id, len(matches),
