@@ -12,7 +12,7 @@ import { useRouter, useParams } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { useWebSocket } from "@/lib/websocket";
 import { useMultiDroneTelemetry } from "@/lib/useMultiDroneTelemetry";
-import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi, photosApi } from "@/lib/api";
+import { missionsApi, dronesApi, alertsApi, systemApi, fieldReportsApi, photosApi, mapAccessApi, usersApi } from "@/lib/api";
 import { MissionMap } from "@/components/map/MissionMap";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { Modal } from "@/components/ui/Modal";
@@ -20,7 +20,7 @@ import { DroneVideoMosaic } from "@/components/mission/DroneVideoMosaic";
 import { FieldReportPanel } from "@/components/mission/FieldReportPanel";
 import { FieldReportResultModal } from "@/components/mission/FieldReportResultModal";
 import { MissionAlertCard } from "@/components/mission/MissionAlertCard";
-import type { Alert, Drone, FieldReport, Mission, MissionDrone, MissionStatus, PhotoResponse, StreamInfo } from "@/lib/types";
+import type { Alert, Drone, FieldReport, MapAccessGrant, Mission, MissionDrone, MissionStatus, PhotoResponse, StreamInfo, User } from "@/lib/types";
 
 // ── Helpers de presentación ───────────────────────────────────────────────────
 
@@ -96,6 +96,10 @@ export default function MissionDetailPage() {
   const [viewMode, setViewMode]           = useState<"map" | "video">("video");
   const [latestDetections, setLatestDetections] = useState<Record<string, Array<{ bbox: { x: number; y: number; w: number; h: number }; detection_type: string; confidence: number; similarity?: number }>>>({});
   const [missingPersonPhotos, setMissingPersonPhotos] = useState<PhotoResponse[]>([]);
+  const [mapAccess, setMapAccess] = useState<MapAccessGrant[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [grantingAccess, setGrantingAccess] = useState(false);
 
   const canManage = user?.role === "admin" || user?.role === "buscador";
 
@@ -190,6 +194,12 @@ export default function MissionDetailPage() {
             .then(setMissingPersonPhotos)
             .catch(() => {});
         }
+        // Cargar acceso al mapa para admin/super_admin/buscador
+        const role = useAuthStore.getState().user?.role;
+        if (role === "admin" || role === "super_admin" || role === "buscador") {
+          mapAccessApi.list(missionId).then(setMapAccess).catch(() => {});
+          usersApi.list().then(setAllUsers).catch(() => {});
+        }
       })
       .catch(() => router.replace("/dashboard/missions"))
       .finally(() => setLoading(false));
@@ -282,6 +292,38 @@ export default function MissionDetailPage() {
     copyTimeoutRef.current = setTimeout(() => setCopiedSerial(null), 2000);
   }, [rtmpBaseUrl]);
 
+  // Otorgar acceso al mapa
+  async function handleGrantAccess() {
+    if (!selectedUserId) return;
+    setGrantingAccess(true);
+    try {
+      const grant = await mapAccessApi.grant(missionId, selectedUserId);
+      setMapAccess((prev) => [...prev, grant]);
+      setSelectedUserId("");
+    } catch {
+      // Silenciar: usuario ya tenía acceso
+    } finally {
+      setGrantingAccess(false);
+    }
+  }
+
+  // Revocar acceso al mapa
+  async function handleRevokeAccess(userId: string) {
+    try {
+      await mapAccessApi.revoke(missionId, userId);
+      setMapAccess((prev) => prev.filter((a) => a.user_id !== userId));
+    } catch {
+      // Ignorar
+    }
+  }
+
+  // Drones activos en la misión — hooks deben ir antes del early return
+  const activeDroneIds = useMemo(
+    () => assignedDrones.filter((d) => !d.left_at).map((d) => d.drone_id),
+    [assignedDrones],
+  );
+  const { droneStates, routes, connectedCount } = useMultiDroneTelemetry(activeDroneIds, accessToken);
+
   if (loading || !mission) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center">
@@ -289,13 +331,6 @@ export default function MissionDetailPage() {
       </div>
     );
   }
-
-  // Drones activos en la misión
-  const activeDroneIds = useMemo(
-    () => assignedDrones.filter((d) => !d.left_at).map((d) => d.drone_id),
-    [assignedDrones],
-  );
-  const { droneStates, routes, connectedCount } = useMultiDroneTelemetry(activeDroneIds, accessToken);
   const hasDrones = activeDroneIds.length > 0;
   const transitions  = STATUS_TRANSITIONS[mission.status] ?? [];
   const isVideoPaused = mission.status === "paused" || mission.status === "completed" || mission.status === "cancelled" || mission.status === "interrupted";
@@ -660,6 +695,72 @@ export default function MissionDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Acceso al mapa */}
+      {(user?.role === "admin" || user?.role === "super_admin" || user?.role === "buscador") && (
+        <section className="bg-slate-900 border border-slate-800 rounded-xl p-4 mx-6 mb-4">
+          <h3 className="text-sm font-semibold text-slate-300 mb-1">Acceso al mapa</h3>
+          <p className="text-xs text-slate-500 mb-3">
+            Ayudantes y familiares solo ven el mapa si se los autoriza explícitamente.
+          </p>
+
+          {mapAccess.length === 0 ? (
+            <p className="text-xs text-slate-600 mb-3">Sin usuarios autorizados todavía.</p>
+          ) : (
+            <ul className="space-y-1.5 mb-3">
+              {mapAccess.map((grant) => (
+                <li
+                  key={grant.user_id}
+                  className="flex items-center justify-between bg-slate-800 rounded px-3 py-2"
+                >
+                  <div>
+                    <span className="text-xs text-slate-200">{grant.user_full_name}</span>
+                    <span className="text-xs text-slate-500 ml-2">· {grant.user_role}</span>
+                  </div>
+                  {(user?.role === "admin" || user?.role === "super_admin") && (
+                    <button
+                      onClick={() => handleRevokeAccess(grant.user_id)}
+                      className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                    >
+                      Revocar
+                    </button>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {(user?.role === "admin" || user?.role === "super_admin") && (
+            <div className="flex gap-2">
+              <select
+                className="flex-1 bg-slate-800 text-slate-200 text-xs rounded px-2 py-1.5 border border-slate-700 focus:outline-none"
+                value={selectedUserId}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+              >
+                <option value="">Seleccionar usuario...</option>
+                {allUsers
+                  .filter(
+                    (u) =>
+                      (u.role === "ayudante" || u.role === "familiar") &&
+                      !mapAccess.some((a) => a.user_id === u.id)
+                  )
+                  .map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.full_name} ({u.role})
+                    </option>
+                  ))}
+              </select>
+              <button
+                onClick={handleGrantAccess}
+                disabled={!selectedUserId || grantingAccess}
+                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded transition-colors"
+              >
+                {grantingAccess ? "..." : "Autorizar"}
+              </button>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* Modal resultado field report */}
       <FieldReportResultModal
