@@ -114,6 +114,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                   <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                   <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                   <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+                  <NavLink href="/dashboard/map" label="Mapa en tiempo real" icon={<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>} isOpen={isOpen} isActive={isActive("/dashboard/map")} />
                 </CollapsibleNavGroup>
                 <CollapsibleNavGroup label="Sistema" storageKey="sa_sistema" defaultOpen={false}>
                   <NavLink href="/dashboard/superadmin" label="Resumen técnico" icon={Icons.home} isOpen={isOpen} isActive={pathname === "/dashboard/superadmin"} />
@@ -137,6 +138,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={false} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                 <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+                <NavLink href="/dashboard/map" label="Mapa en tiempo real" icon={<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>} isOpen={false} isActive={isActive("/dashboard/map")} />
                 <NavLink href="/dashboard/superadmin" label="Técnico" icon={Icons.health} isOpen={false} isActive={isActive("/dashboard/superadmin")} />
                 <NavLink href="/dashboard/superadmin/config" label="Config" icon={Icons.config} isOpen={false} isActive={isActive("/dashboard/superadmin/config")} />
               </>
@@ -156,6 +158,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={isOpen} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={isOpen} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                 <NavLink href="/dashboard/admin/pending-review" label="Revisión pendiente" icon={Icons.review} isOpen={isOpen} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+                <NavLink href="/dashboard/map" label="Mapa en tiempo real" icon={<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>} isOpen={isOpen} isActive={isActive("/dashboard/map")} />
               </CollapsibleNavGroup>
             ) : (
               <>
@@ -166,6 +169,7 @@ export function Sidebar({ isOpen, badges }: SidebarProps) {
                 <NavLink href="/dashboard/detections" label="Detecciones" icon={Icons.detections} isOpen={false} isActive={isActive("/dashboard/detections")} badge={badges.detections} badgeColor="amber" />
                 <NavLink href="/dashboard/alerts" label="Alertas" icon={Icons.alerts} isOpen={false} isActive={isActive("/dashboard/alerts")} badge={badges.alerts} badgeColor="red" />
                 <NavLink href="/dashboard/admin/pending-review" label="Revisión" icon={Icons.review} isOpen={false} isActive={isActive("/dashboard/admin/pending-review")} badge={badges.review} badgeColor="amber" />
+                <NavLink href="/dashboard/map" label="Mapa en tiempo real" icon={<svg width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" /></svg>} isOpen={false} isActive={isActive("/dashboard/map")} />
               </>
             )}
           </>
