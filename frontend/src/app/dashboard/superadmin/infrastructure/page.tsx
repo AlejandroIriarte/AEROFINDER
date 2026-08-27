@@ -144,7 +144,7 @@ export default function InfrastructurePage() {
   const allOk   = okCount === serviceKeys.length;
 
   return (
-    <RoleGuard allowedRoles={["super_admin"]}>
+    <RoleGuard allowedRoles={["admin", "super_admin"]}>
       <div className="p-6 space-y-6">
 
         {/* Header */}

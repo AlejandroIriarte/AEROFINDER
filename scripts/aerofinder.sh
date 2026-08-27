@@ -330,8 +330,10 @@ print_access_summary() {
   echo -e "${BOLD}║${RESET}  RTMP dron     ${YELLOW}rtmp://${ip}:1935/<SERIAL_DRON>${RESET}"
   echo -e "${BOLD}║${RESET}  HLS video     ${CYAN}http://${ip}:8888/<SERIAL_DRON>/index.m3u8${RESET}"
   echo -e "${BOLD}╠══════════════════════════════════════════════════════════╣${RESET}"
-  echo -e "${BOLD}║${RESET}  Admin         admin@aerofinder.local / AeroAdmin2024!"
-  echo -e "${BOLD}║${RESET}  Super Admin   superadmin@aerofinder.local / AeroSuperAdmin2024!"
+  echo -e "${BOLD}║${RESET}  ${BOLD}Administrador${RESET}          admin@aerofinder.local"
+  echo -e "${BOLD}║${RESET}                         AeroAdmin2024!"
+  echo -e "${BOLD}║${RESET}  ${BOLD}Rescatista principal${RESET}   (crear desde panel → Usuarios)"
+  echo -e "${BOLD}║${RESET}  ${BOLD}Ayudante${RESET}               (crear desde panel → Usuarios)"
   echo -e "${BOLD}╚══════════════════════════════════════════════════════════╝${RESET}"
   echo ""
   echo -e "${BOLD}  ┌─────────────────────────────────────────────────────┐${RESET}"
@@ -442,7 +444,7 @@ cmd_status() {
     "Backend API|http://${host}:8000/health"
     "Frontend  |http://${host}:3000"
     "MinIO API |http://${host}:9000/minio/health/live"
-    "HLS server|http://${host}:9997/v3/paths/list"
+    "HLS server|http://${host}:8888/v3/paths/list"
   )
 
   for entry in "${checks[@]}"; do
@@ -562,7 +564,7 @@ cmd_health() {
   check_endpoint "Frontend"         "http://${host}:3000"
   check_endpoint "MinIO health"     "http://${host}:9000/minio/health/live"
   check_endpoint "MinIO console"    "http://${host}:9001"
-  check_endpoint "HLS server"       "http://${host}:9997/v3/paths/list"
+  check_endpoint "HLS server"       "http://${host}:8888/v3/paths/list"
 
   echo ""
   if [ $failed -eq 0 ]; then

@@ -28,7 +28,7 @@ from app.services.minio_service import minio_service
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/superadmin", tags=["superadmin"])
 
-_super_admin = require_role(RoleName.super_admin)
+_super_admin = require_role(RoleName.admin)
 
 
 # ── Schemas de respuesta ──────────────────────────────────────────────────────

@@ -30,22 +30,13 @@ const TYPE_COLOR: Record<string, string> = {
   face_match:        "bg-red-100 text-red-700",
 };
 
-const LEVEL_COLOR: Record<string, string> = {
-  full:              "border-red-400 bg-red-50",
-  partial:           "border-amber-400 bg-amber-50",
-  confirmation_only: "border-blue-300 bg-blue-50",
-};
-
-const LEVEL_BADGE: Record<string, string> = {
-  full:              "bg-red-100 text-red-700",
-  partial:           "bg-amber-100 text-amber-700",
-  confirmation_only: "bg-blue-100 text-blue-700",
-};
-
-const LEVEL_LABEL: Record<string, string> = {
-  full:              "Coincidencia confirmada",
-  partial:           "Coincidencia probable",
-  confirmation_only: "Posible coincidencia",
+// Nota: content_level indica el nivel de acceso del destinatario (rol), no la
+// confianza de la coincidencia — el color/etiqueta del recuadro se deriva de
+// detection_type, que sí refleja si hubo o no un rostro detectado.
+const TYPE_BORDER: Record<string, string> = {
+  face_match:        "border-red-400 bg-red-50",
+  face_candidate:    "border-amber-400 bg-amber-50",
+  person_silhouette: "border-blue-300 bg-blue-50",
 };
 
 const ALERT_STATUS_LABEL: Record<string, string> = {
@@ -117,7 +108,7 @@ function PendingCard({
   const isFace = alert.detection_type === "face_match" || alert.detection_type === "face_candidate";
 
   return (
-    <div className={`overflow-hidden rounded-xl border-2 shadow-md transition-transform hover:-translate-y-0.5 ${LEVEL_COLOR[alert.content_level] ?? "border-gray-200 bg-white"}`}>
+    <div className={`overflow-hidden rounded-xl border-2 shadow-md transition-transform hover:-translate-y-0.5 ${TYPE_BORDER[alert.detection_type ?? ""] ?? "border-gray-200 bg-white"}`}>
       {/* Snapshot */}
       <div className="relative w-full bg-gray-900" style={{ aspectRatio: "16/9" }}>
         {alert.snapshot_url ? (
@@ -137,9 +128,6 @@ function PendingCard({
           </div>
         )}
         <div className="absolute left-2 top-2 flex flex-col gap-1">
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${LEVEL_BADGE[alert.content_level] ?? "bg-gray-100 text-gray-600"}`}>
-            {LEVEL_LABEL[alert.content_level] ?? alert.content_level}
-          </span>
           {alert.detection_type && (
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isFace ? "bg-purple-100 text-purple-700" : "bg-blue-100 text-blue-700"}`}>
               {TYPE_LABEL[alert.detection_type] ?? alert.detection_type}
@@ -223,7 +211,7 @@ function ReviewedRow({ alert }: { alert: Alert }) {
       )}
       <div className="flex-1 min-w-0">
         <p className="truncate text-xs font-semibold text-gray-800">
-          {alert.person_full_name ?? (LEVEL_LABEL[alert.content_level] ?? alert.content_level)}
+          {alert.person_full_name ?? (alert.detection_type ? (TYPE_LABEL[alert.detection_type] ?? alert.detection_type) : "Detección")}
         </p>
         <p className="text-[10px] text-gray-400">{fmtTime(alert.generated_at)}</p>
       </div>

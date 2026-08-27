@@ -231,6 +231,7 @@ services:
       YOLO_MODEL_PATH:           ${YOLO_MODEL_PATH:-/models/yolov8n.pt}
       INSIGHTFACE_MODEL_DIR:     ${INSIGHTFACE_MODEL_DIR:-/models/insightface}
       NVIDIA_VISIBLE_DEVICES:    ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
     volumes:
       # Volumen persistente para modelos de IA — evita re-descargar (~500MB buffalo_l)
       - ai_models:/models
@@ -243,14 +244,8 @@ services:
         condition: service_started
     networks:
       - aerofinder_net
-    # Configuración de GPU — requiere nvidia-container-toolkit en el host
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    # Configuración de GPU — runtime nvidia directo (no requiere nvidia-ctk/CDI)
+    runtime: nvidia
 
 
   # ── Frontend Next.js 14 ───────────────────────────────────────────────────────

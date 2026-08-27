@@ -406,7 +406,7 @@ export default function SuperAdminPage() {
   const criticalLogs   = auditLogs.filter(l => l.operation === "DELETE").length;
 
   return (
-    <RoleGuard allowedRoles={["super_admin"]}>
+    <RoleGuard allowedRoles={["admin", "super_admin"]}>
       <div className="p-6 space-y-6">
 
         {/* Header */}

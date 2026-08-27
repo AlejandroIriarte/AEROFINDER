@@ -284,6 +284,11 @@ async def process_stream(
                     snapshot_b64:      Optional[str]   = None
 
                     # ── Reconocimiento facial si está activo ──────────────────
+                    if face_recognition_on and coverage_pct < facenet_bbox_min:
+                        logger.debug(
+                            "Face skip — coverage %.2f%% < min %.2f%% drone=%s",
+                            coverage_pct, facenet_bbox_min, serial,
+                        )
                     if face_recognition_on and coverage_pct >= facenet_bbox_min:
                         x, y, w, h = bbox["x"], bbox["y"], bbox["w"], bbox["h"]
                         crop = frame[
@@ -293,6 +298,12 @@ async def process_stream(
 
                         if crop.size > 0:
                             embedding = recognizer.extract_embedding(crop)
+                            logger.info(
+                                "Face crop coverage=%.2f%% embedding=%s drone=%s",
+                                coverage_pct,
+                                "OK" if embedding is not None else "NO_FACE",
+                                serial,
+                            )
 
                             if embedding is not None:
                                 # Pasar embeddings de esta task explícitamente
@@ -307,6 +318,15 @@ async def process_stream(
                                     similarity        = match["similarity"]
                                     matched_person_id = match["person_id"]
                                 else:
+                                    # Log para diagnóstico: ver score real aunque no supere umbral
+                                    best_sim = recognizer.best_similarity(
+                                        embedding, embeddings_cache=task_embeddings
+                                    )
+                                    logger.info(
+                                        "face_candidate — mejor_sim=%.4f umbral=%.2f drone=%s",
+                                        best_sim if best_sim is not None else -1,
+                                        facenet_sim, serial,
+                                    )
                                     detection_type = "face_candidate"
 
                                 try:

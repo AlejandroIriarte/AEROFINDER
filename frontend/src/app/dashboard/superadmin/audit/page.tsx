@@ -132,7 +132,7 @@ export default function AuditPage() {
   );
 
   return (
-    <RoleGuard allowedRoles={["super_admin"]}>
+    <RoleGuard allowedRoles={["admin", "super_admin"]}>
       <div className="p-6 space-y-5">
 
         {/* Header */}

@@ -19,7 +19,7 @@ from app.schemas.audit_log import AuditLogResponse
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/audit-log", tags=["auditoría"])
 
-_super_admin = require_role(RoleName.super_admin)
+_super_admin = require_role(RoleName.admin)
 
 
 @router.get("/", response_model=list[AuditLogResponse])

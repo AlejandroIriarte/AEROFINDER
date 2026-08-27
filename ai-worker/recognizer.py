@@ -124,3 +124,16 @@ class FaceRecognizer:
         except Exception:
             logger.error("Error al buscar match de embedding", exc_info=True)
             return None
+
+    def best_similarity(
+        self,
+        query_embedding: np.ndarray,
+        embeddings_cache: Optional[list[dict]] = None,
+    ) -> Optional[float]:
+        cache = embeddings_cache if embeddings_cache is not None else self._embeddings_cache
+        if not cache:
+            return None
+        try:
+            return max(float(np.dot(query_embedding, e["vector"])) for e in cache)
+        except Exception:
+            return None

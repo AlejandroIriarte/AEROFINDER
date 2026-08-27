@@ -84,6 +84,7 @@ export default function MissionDetailPage() {
   const [loading, setLoading]             = useState(true);
   const [statusLoading, setStatusLoading] = useState(false);
   const [recognitionLoading, setRecognitionLoading] = useState(false);
+  const [faceRecognitionLoading, setFaceRecognitionLoading] = useState(false);
   const [showDroneModal, setShowDroneModal] = useState(false);
   const [selectedDroneId, setSelectedDroneId] = useState("");
   const [rtmpBaseUrl, setRtmpBaseUrl]     = useState<string | null>(null);
@@ -268,7 +269,7 @@ export default function MissionDetailPage() {
     }
   }, [mission]);
 
-  // Activar / desactivar reconocimiento facial
+  // Activar / desactivar detección de personas
   const handleToggleRecognition = useCallback(async () => {
     if (!mission) return;
     setRecognitionLoading(true);
@@ -279,6 +280,20 @@ export default function MissionDetailPage() {
       // Silencioso
     } finally {
       setRecognitionLoading(false);
+    }
+  }, [mission]);
+
+  // Activar / desactivar reconocimiento facial
+  const handleToggleFaceRecognition = useCallback(async () => {
+    if (!mission) return;
+    setFaceRecognitionLoading(true);
+    try {
+      const updated = await missionsApi.setRecognition(mission.id, mission.recognition_active, !(mission.face_recognition_active ?? false));
+      setMission(updated);
+    } catch {
+      // Silencioso
+    } finally {
+      setFaceRecognitionLoading(false);
     }
   }, [mission]);
 
@@ -601,6 +616,27 @@ export default function MissionDetailPage() {
                 {mission.recognition_active && (
                   <p className="mt-1 text-center text-[10px] text-green-600 font-medium">
                     ● IA procesando stream
+                  </p>
+                )}
+                <button
+                  onClick={handleToggleFaceRecognition}
+                  disabled={faceRecognitionLoading || !mission.recognition_active}
+                  title={!mission.recognition_active ? "Activa primero la detección de personas" : undefined}
+                  className={`mt-2 w-full rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                    mission.face_recognition_active
+                      ? "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
+                >
+                  {faceRecognitionLoading
+                    ? "…"
+                    : mission.face_recognition_active
+                    ? "⏹ Detener reconocimiento facial"
+                    : "▶ Activar reconocimiento facial"}
+                </button>
+                {mission.face_recognition_active && (
+                  <p className="mt-1 text-center text-[10px] text-blue-600 font-medium">
+                    ● Comparando rostros con FaceNet
                   </p>
                 )}
               </div>

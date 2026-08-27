@@ -121,7 +121,7 @@ export default function HardDeletePage() {
   };
 
   return (
-    <RoleGuard allowedRoles={["super_admin"]}>
+    <RoleGuard allowedRoles={["admin", "super_admin"]}>
       {selected && (
         <ConfirmModal
           user={selected}
